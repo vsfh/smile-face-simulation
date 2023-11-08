@@ -9,6 +9,16 @@ sys.path.append('..')
 from network.encoders import GradualStyleEncoder
 from network.layers import *
 
+def replace_batchnorm(model):
+    for name, module in reversed(model._modules.items()):
+        if len(list(module.children())) > 0:
+            model._modules[name] = replace_batchnorm(module)
+        
+        if isinstance(module, torch.nn.BatchNorm2d):
+            model._modules[name] = torch.nn.GroupNorm(32, module.num_features)
+
+    return model 
+
 class Generator(nn.Module):
     def __init__(
             self,
@@ -233,8 +243,7 @@ class pSp(nn.Module):
         self.decoder = Generator(256, 512, 8)
         if not opts is None:
             self.decoder.load_state_dict(torch.load(opts.stylegan_weights)['g_ema'])
-        
-        # self.face_pool = torch.nn.AdaptiveAvgPool2d((256, 256))
+        self = replace_batchnorm(self)
 
     def forward(
             self,
