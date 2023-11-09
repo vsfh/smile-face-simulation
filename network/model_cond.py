@@ -237,13 +237,14 @@ class Generator(nn.Module):
 
 class pSp(nn.Module):
     def __init__(            
-            self,opts=None):
+            self,decoder_checkpoint_path=None):
         super(pSp, self).__init__()
         self.encoder = GradualStyleEncoder(50, 'ir_se', use_skip=True, use_skip_torgb=True, input_nc=4)
         self.decoder = Generator(256, 512, 8)
-        if not opts is None:
-            self.decoder.load_state_dict(torch.load(opts.stylegan_weights)['g_ema'])
+        if not decoder_checkpoint_path is None:
+            self.decoder.load_state_dict(torch.load(decoder_checkpoint_path)['g_ema'])
         self = replace_batchnorm(self)
+        # self.face_pool = torch.nn.AdaptiveAvgPool2d((256, 256))
 
     def forward(
             self,
