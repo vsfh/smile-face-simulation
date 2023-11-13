@@ -252,7 +252,7 @@ class GradualStyleEncoder(Module):
     # feats[0] is f for the 1st conv layer, feats[1] is f for the 1st torgb layer
     # feats[2-8] is the skipped encoder features 
     def forward(self, x, return_feat=False, return_full=False): ##### modified      
-        if x.shape[1] != 3:
+        if return_feat:
             x = self.input_label_layer(x)
         else:
             x = self.input_layer(x)

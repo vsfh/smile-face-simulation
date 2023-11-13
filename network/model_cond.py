@@ -260,7 +260,6 @@ class pSp(nn.Module):
             styles = [self.encoder(cond_img[:,-3:,:,:]*cond_img[:,2:3,:,:],return_feat=False, return_full=True)] ##### modified
             input_is_latent = True
         feats = self.encoder(cond_img[:,:4,:,:], return_feat=True, return_full=True) ##### modified
-        
         first_layer_feats, skip_layer_feats = None, None ##### modified            
 
         first_layer_feats = feats[0:2] # use f
