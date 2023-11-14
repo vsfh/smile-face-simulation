@@ -88,7 +88,6 @@ def get_input(img_folder, step_idx):
     cond_im = img.copy()
     cond_im_2 = img.copy()
     
-    
     cond = torch.zeros((7,256,256))
 
     # tk = cv2.imread(os.path.join(img_folder, f'step{step_idx}.txt', 'depth.png'))
@@ -116,3 +115,34 @@ def get_input(img_folder, step_idx):
     cond = cond.unsqueeze(0).cuda()
     
     return {'images': im, 'cond':cond}   
+
+def get_example(img_folder):
+    img = cv2.imread(os.path.join(img_folder, 'smile.png'))
+    img = cv2.resize(img, (256, 256), interpolation=cv2.INTER_LINEAR)
+    im = preprocess(img)
+    cond_im = img.copy()
+    cond_im_2 = img.copy()
+    
+    cond = torch.zeros((7,256,256)) 
+    tk = cv2.imread(os.path.join(img_folder, 'depth.png'))
+    ed = cv2.imread(os.path.join(img_folder, 'down_edge.png'))
+    eu = cv2.imread(os.path.join(img_folder, 'up_edge.png'))
+    eu, ed = cv2.dilate(eu, kernel=np.ones((3,3))), cv2.dilate(ed, kernel=np.ones((3,3)))
+    tk[tk!=0]=255
+    mk = cv2.imread(os.path.join(img_folder, 'mouth_mask.png'))
+    cond[3] = preprocess(mk)[0]
+    
+    cond_im[mk==0]=0
+    img[tk!=0]=0
+    cond[-3:] = preprocess(cond_im)
+
+    cond_im_2[...,0][mk[...,0]!=0] = ed[...,0][mk[...,0]!=0]
+    cond_im_2[...,1][mk[...,0]!=0] = eu[...,0][mk[...,0]!=0]     
+    cond_im_2[...,2][mk[...,0]!=0] = tk[...,0][mk[...,0]!=0] 
+        
+    cond[:3] = preprocess(cond_im_2)
+    
+    im = im.unsqueeze(0).cuda()
+    cond = cond.unsqueeze(0).cuda()
+    
+    return {'images': im, 'cond':cond}  

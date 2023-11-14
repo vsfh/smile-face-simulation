@@ -18,10 +18,10 @@ from scripts.utils import *
 
 data_path = '/data/shenfeihong/smile/out/'
 decoder_checkpoint_path = '/data/shenfeihong/smile/ori_style/checkpoint/ori_style_150000.pt'
-save_path = '/data/shenfeihong/smile/weight/'
+save_path = '/data/shenfeihong/smile/orthovis/11.14'
 learning_rate= 1e-5
 start_from_latent_avg = False
-max_step = 800000
+max_step = 200000
 d_reg_every = 16
 plot_every = 100
 dis_update = 1000
@@ -29,7 +29,7 @@ vali_every = 1000
 
 def get_pipeline():
     train_loader = get_loader(data_path, 4, 'train')
-    test_loader = get_loader(data_path, 4, 'test')
+    test_loader = get_loader(data_path, 1, 'test')
     net = pSp(decoder_checkpoint_path)
     optimizer = torch.optim.Adam(net.encoder.parameters(), lr=learning_rate)
     discriminator, discriminator_opt = get_dis_opt(decoder_checkpoint_path, learning_rate)
@@ -54,6 +54,10 @@ def train():
     net.train()
     requires_grad(discriminator, False)
     step_idx = 0
+    plotting_dir = os.path.join(save_path, 'image')
+    model_save_dir = os.path.join(save_path, 'checkpoint')
+    os.makedirs(plotting_dir, exist_ok=True)
+    os.makedirs(model_save_dir, exist_ok=True)
     
     while step_idx < max_step:
         for i, batch in enumerate(train_loader):
@@ -63,12 +67,13 @@ def train():
             real_img = batch['images']
             fake_img = net.forward(cond_img, return_latents=False)
         
+            # former (1, 0.1, 1)
             # lpips loss#
             lp_loss = lpips_loss(real_img, fake_img)
             # l2 loss #
-            l2_loss = 0.1 * F.mse_loss(real_img, fake_img)
+            l2_loss = F.mse_loss(real_img, fake_img)
             # adv loss #
-            adv_loss = F.softplus(-discriminator(fake_img)).mean()
+            adv_loss = 0.01 * F.softplus(-discriminator(fake_img)).mean()
             
             loss = lp_loss + l2_loss + adv_loss
             accelerator.backward(loss)
@@ -109,17 +114,17 @@ def train():
                 img_dict['target'] = real_img[0]
                 img_dict['output'] = fake_img[0]
                 fig = plotting_fig(img_dict)
-                fig.savefig(os.path.join(save_path,f'{step_idx}.png'))
+                fig.savefig(os.path.join(plotting_dir, f'{step_idx}.png'))
                 plt.close(fig)
                 
             is_validate = step_idx % vali_every == 0
             if is_validate:
-                validate(net, test_loader, step_idx)
-                checkpointme(net, accelerator, step_idx)
+                validate(net, test_loader, plotting_dir, step_idx)
+                checkpointme(net, accelerator, os.path.join(model_save_dir,f'{step_idx}.pt'))
                 
             step_idx += 1
              
-def validate(net, test_loader, step_idx):
+def validate(net, test_loader, save_path, step_idx):
     net.eval()
     for i, batch in enumerate(test_loader):
         cond_img = batch['cond']
@@ -132,15 +137,15 @@ def validate(net, test_loader, step_idx):
         img_dict['target'] = real_img[0]
         img_dict['output'] = fake_img[0]
         fig = plotting_fig(img_dict)
-        fig.savefig(os.path.join(save_path,f'val_{step_idx}_{i}.png'))
+        fig.savefig(os.path.join(save_path, f'val_{step_idx}_{i}.png'))
         plt.close(fig)
     net.train()
     return None
 
-def checkpointme(net, accelerator, step_idx):
+def checkpointme(net, accelerator, save_path):
     accelerator.wait_for_everyone()
     unwrapped_model = accelerator.unwrap_model(net)  
-    accelerator.save(unwrapped_model.state_dict(), os.path.join(save_path,f'{step_idx}.pt'))
+    accelerator.save(unwrapped_model.state_dict(), save_path)
      
 if __name__=='__main__':
     train()   
