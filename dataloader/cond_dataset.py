@@ -91,15 +91,18 @@ def get_input(img_folder, step_idx):
     
     cond = torch.zeros((7,256,256))
 
-    tk = cv2.imread(os.path.join(img_folder, f'step{step_idx}.txt', 'depth.png'))
-    ed = cv2.imread(os.path.join(img_folder, f'step{step_idx}.txt', 'down_edge.png'))
-    eu = cv2.imread(os.path.join(img_folder, f'step{step_idx}.txt', 'up_edge.png'))
+    # tk = cv2.imread(os.path.join(img_folder, f'step{step_idx}.txt', 'depth.png'))
+    # ed = cv2.imread(os.path.join(img_folder, f'step{step_idx}.txt', 'down_edge.png'))
+    # eu = cv2.imread(os.path.join(img_folder, f'step{step_idx}.txt', 'up_edge.png'))    
+    tk = cv2.imread(os.path.join(img_folder, f'step', 'depth.png'))
+    ed = cv2.imread(os.path.join(img_folder, f'step', 'down_edge.png'))
+    eu = cv2.imread(os.path.join(img_folder, f'step', 'up_edge.png'))
     eu, ed = cv2.dilate(eu, kernel=np.ones((3,3))), cv2.dilate(ed, kernel=np.ones((3,3)))
     tk[tk!=0]=255
     mk = cv2.imread(os.path.join(img_folder, 'mouth_mask.png'))
     cond[3] = preprocess(mk)[0]
     
-    cond_im[tk==0]=0
+    cond_im[mk==0]=0
     img[tk!=0]=0
     cond[-3:] = preprocess(cond_im)
 
