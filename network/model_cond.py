@@ -232,18 +232,22 @@ class Generator(nn.Module):
             i += 2
 
         image = skip
-
-        return image
+        if return_latents:
+            return image, latent
+        return image, None
 
 class pSp(nn.Module):
     def __init__(            
-            self,decoder_checkpoint_path=None):
+            self,decoder_checkpoint_path=None, start_from_avg=False):
         super(pSp, self).__init__()
         self.encoder = GradualStyleEncoder(50, 'ir_se', use_skip=True, use_skip_torgb=True, input_nc=4)
         self.decoder = Generator(256, 512, 8)
         if not decoder_checkpoint_path is None:
             self.decoder.load_state_dict(torch.load(decoder_checkpoint_path)['g_ema'])
         self = replace_batchnorm(self)
+        self.start_from_avg = start_from_avg
+        if start_from_avg:
+            self.mean_latent = self.decoder.mean_latent(int(1e5))[0].detach().cuda()
         # self.face_pool = torch.nn.AdaptiveAvgPool2d((256, 256))
 
     def forward(
@@ -253,11 +257,14 @@ class pSp(nn.Module):
             return_latents=False,
             first_layer_feature_ind = 0,  ##### modified
             fusion_block = None,   ##### modified
-            input_is_latent = False
+            input_is_latent = False,
+            concat_img = True
 
     ):
         if styles is None:
-            styles = [self.encoder(cond_img[:,-3:,:,:]*cond_img[:,2:3,:,:],return_feat=False, return_full=True)] ##### modified
+            styles = self.encoder(cond_img[:,-3:,:,:]*cond_img[:,2:3,:,:],return_feat=False, return_full=True) ##### modified
+            if self.start_from_avg:
+                styles = styles + self.mean_latent.repeat(cond_img.shape[0],1,1)
             input_is_latent = True
         feats = self.encoder(cond_img[:,:4,:,:], return_feat=True, return_full=True) ##### modified
         first_layer_feats, skip_layer_feats = None, None ##### modified            
@@ -266,14 +273,17 @@ class pSp(nn.Module):
         skip_layer_feats = feats[2:] # use skipped encoder feature
         if fusion_block is None:
             fusion_block = self.encoder.fusion # use fusion layer to fuse encoder feature and decoder feature.
-        images = self.decoder(styles,
+        images = self.decoder([styles],
                                 input_is_latent = input_is_latent,
                                 return_latents=return_latents,
                                 first_layer_feature=first_layer_feats,
                                 first_layer_feature_ind=first_layer_feature_ind,
                                 skip_layer_feature=skip_layer_feats,
                                 fusion_block=fusion_block) ##### modified
-        images = images*(cond_img[:,3:4,:,:])+cond_img[:,:3,:,:]*(1-cond_img[:,3:4,:,:])
+        if concat_img:
+            images = images*(cond_img[:,3:4,:,:])+cond_img[:,:3,:,:]*(1-cond_img[:,3:4,:,:])
+        if self.start_from_avg:
+            return images, styles - self.mean_latent.repeat(cond_img.shape[0],1,1)
         return images
 
 

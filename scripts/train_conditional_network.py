@@ -18,9 +18,9 @@ from scripts.utils import *
 
 data_path = '/data/shenfeihong/smile/out/'
 decoder_checkpoint_path = '/data/shenfeihong/smile/ori_style/checkpoint/ori_style_150000.pt'
-save_path = '/data/shenfeihong/smile/orthovis/11.14'
+save_path = '/data/shenfeihong/smile/orthovis/11.16'
 learning_rate= 1e-5
-start_from_latent_avg = False
+start_from_avg = True
 max_step = 200000
 d_reg_every = 16
 plot_every = 100
@@ -30,7 +30,7 @@ vali_every = 1000
 def get_pipeline():
     train_loader = get_loader(data_path, 4, 'train')
     test_loader = get_loader(data_path, 1, 'test')
-    net = pSp(decoder_checkpoint_path)
+    net = pSp(decoder_checkpoint_path, start_from_avg=start_from_avg)
     optimizer = torch.optim.Adam(net.encoder.parameters(), lr=learning_rate)
     discriminator, discriminator_opt = get_dis_opt(decoder_checkpoint_path, learning_rate)
     lpips_loss = LPIPS(net_type='alex')
@@ -58,16 +58,18 @@ def train():
     model_save_dir = os.path.join(save_path, 'checkpoint')
     os.makedirs(plotting_dir, exist_ok=True)
     os.makedirs(model_save_dir, exist_ok=True)
-    
     while step_idx < max_step:
         for i, batch in enumerate(train_loader):
             optimizer.zero_grad()
             
             cond_img = batch['cond']
             real_img = batch['images']
-            fake_img = net.forward(cond_img, return_latents=False)
+            if start_from_avg:
+                fake_img, latent = net.forward(cond_img, return_latents=False, concat_img=False)
+            else:
+                fake_img = net.forward(cond_img, return_latents=False, concat_img=False)
         
-            # former (1, 0.1, 1)
+            # former (1, 0.1, 1) (1, 1, 0.01)
             # lpips loss#
             lp_loss = lpips_loss(real_img, fake_img)
             # l2 loss #
@@ -76,11 +78,15 @@ def train():
             adv_loss = 0.01 * F.softplus(-discriminator(fake_img)).mean()
             
             loss = lp_loss + l2_loss + adv_loss
-            accelerator.backward(loss)
-            optimizer.step()
+            if start_from_avg:
+                w_norm_loss = torch.sum(latent.norm(2, dim=(1, 2))) / latent.shape[0]
+                loss += w_norm_loss
+                if step_idx % 50 == 0:
+                    print(f'w-norm:{w_norm_loss.item()}')
             if step_idx % 50 == 0:
                 print(f'lp_loss:{lp_loss.item()}, l2_loss:{l2_loss.item()}, adv_loss:{adv_loss.item()}')
-
+            accelerator.backward(loss)
+            optimizer.step()
             
             # discriminator loss #
             update_discriminator = step_idx > dis_update
@@ -130,7 +136,10 @@ def validate(net, test_loader, save_path, step_idx):
         cond_img = batch['cond']
         real_img = batch['images']
         with torch.no_grad():
-            fake_img = net.forward(cond_img, return_latents=False)
+            if start_from_avg:
+                fake_img,_ = net.forward(cond_img, return_latents=False, concat_img=False)
+            else:
+                fake_img = net.forward(cond_img, return_latents=False, concat_img=False)
         img_dict = {}
         img_dict['cond'] = cond_img[0][:3,:,:]
         img_dict['input'] = cond_img[0][-3:,:,:]

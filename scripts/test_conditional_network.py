@@ -63,8 +63,9 @@ def test_multi_img(path, checkpoint_path):
         plt.close(fig)
      
 def test_pt():
-    path = '/data/shenfeihong/smile/weight/'
-    save_path = '/data/shenfeihong/smile/orthovis/11.14/'
+    date = '11.15'
+    path = f'/data/shenfeihong/smile/orthovis/{date}/checkpoint/'
+    save_path = f'/data/shenfeihong/smile/orthovis/{date}/result'
     for file in os.listdir(path):
         if not file.endswith('.pt'):
             continue
