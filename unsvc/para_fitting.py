@@ -581,10 +581,9 @@ def load_teeth_step(img_folder):
     steps_dict['step_0'] = step_one_dict
     return steps_dict, tooth_dict
 
-def test():
+def infer():
     path = '/mnt/d/data/smile/out'
-
-    for case in tqdm(natsort.natsorted(os.listdir(path))[:15]):
+    for case in tqdm(natsort.natsorted(os.listdir(path))[:200]):
         # case = '0b01e19ba8f3daa5aed0653dd253a78e'
         img_folder = os.path.join('/mnt/d/data/smile/Teeth_simulation_10K/',case)
         steps_dict, tooth_dict = load_teeth_step(img_folder)
@@ -615,4 +614,4 @@ def test_single():
 
 
 if __name__=="__main__":
-    test()  
+    infer()  
