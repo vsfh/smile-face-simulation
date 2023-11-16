@@ -10,6 +10,55 @@ from dataloader.augment import RandomPerspective, preprocess
 import os
 import numpy as np
 
+class YangOldNew(Dataset):
+    def __init__(self, path, mode='test'):
+        self.path = path
+        
+        self.all_files = []
+        if mode=='test':
+            folder_list = os.listdir(self.path)[-9:]
+        else:
+            folder_list = os.listdir(self.path)[:-9]
+            
+        for folder in folder_list:
+            self.all_files.append(os.path.join(self.path, folder,))
+
+        print('total image:', len(self.all_files))
+        self.mode = mode
+        self.half = False
+        self.aug = RandomPerspective(translate=0.05, degrees=5, scale=0.05)
+    
+    def __len__(self):
+        return len(self.all_files)
+    
+    def __getitem__(self, index):
+        img_folder = self.all_files[index]
+        img = cv2.imread(os.path.join(img_folder, 'Img.jpg'))
+        img = cv2.resize(img, (256, 256), interpolation=cv2.INTER_LINEAR)
+        im = preprocess(img)
+
+        cond = torch.zeros((7,256,256))
+        if self.mode=='test':
+            cond_im = img.copy()
+            cond_im_2 = img.copy()
+            ed = cv2.imread(os.path.join(img_folder, 'TeethEdgeDown.png'))
+            eu = cv2.imread(os.path.join(img_folder, 'TeethEdgeUp.png'))
+            mk = cv2.imread(os.path.join(img_folder, 'MouthMask.png'))
+            tk = cv2.imread(os.path.join(img_folder, 'TeethMasks.png'))
+            cond[3] = preprocess(mk)[0]
+            
+            cond_im[tk==0]=0
+            cond_im = self.aug(cond_im)
+            img[tk!=0]=0
+            cond[-3:] = preprocess(cond_im)
+
+            cond_im_2[...,0][mk[...,0]!=0] = ed[...,0][mk[...,0]!=0]
+            cond_im_2[...,1][mk[...,0]!=0] = eu[...,0][mk[...,0]!=0]     
+            cond_im_2[...,2][mk[...,0]!=0] = tk[...,0][mk[...,0]!=0] 
+            cond[:3] = preprocess(cond_im_2)
+        
+        return {'images': im, 'cond':cond}
+    
 class GeneratedDepth(Dataset):
     def __init__(self, path='/ssd/gregory/smile/out/', mode='train'):
         self.path = path
@@ -38,6 +87,7 @@ class GeneratedDepth(Dataset):
         im = preprocess(img)
         cond_im = img.copy()
         cond_im_2 = img.copy()
+        # cond_im_2 = np.zeros_like(img)
         
         
         cond = torch.zeros((7,256,256))
@@ -52,6 +102,7 @@ class GeneratedDepth(Dataset):
             eu, ed = cv2.dilate(eu, kernel=np.ones((3,3))), cv2.dilate(ed, kernel=np.ones((3,3)))
             tk[tk!=0]=255
         mk = cv2.imread(os.path.join(img_folder, 'mouth_mask.png'))
+        mk_dia = cv2.dilate(mk, kernel=np.ones((5,5)))
         cond[3] = preprocess(mk)[0]
         
         cond_im[tk==0]=0
@@ -72,8 +123,11 @@ class GeneratedDepth(Dataset):
         
         return {'images': im, 'cond':cond}   
 
-def get_loader(path, bs ,mode):
-    ds = GeneratedDepth(path, mode)
+def get_loader(path, bs ,mode, type='tianshi'):
+    if type=='Yang':
+        ds = YangOldNew(path, mode)
+    else:
+        ds = GeneratedDepth(path, mode)
     dl = DataLoader(ds,
                     batch_size=bs,
                     shuffle=(mode=='train'),
