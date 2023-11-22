@@ -155,13 +155,13 @@ def get_input(img_folder, step_idx):
     tk = cv2.imread(os.path.join(img_folder, f'step', 'depth.png'))
     ed = cv2.imread(os.path.join(img_folder, f'step', 'down_edge.png'))
     eu = cv2.imread(os.path.join(img_folder, f'step', 'up_edge.png'))
-    eu, ed = cv2.dilate(eu, kernel=np.ones((3,3))), cv2.dilate(ed, kernel=np.ones((3,3)))
+    eu, ed = cv2.dilate(eu, kernel=np.ones((5,5))), cv2.dilate(ed, kernel=np.ones((5,5)))
     tk[tk!=0]=255
     mk = cv2.imread(os.path.join(img_folder, 'mouth_mask.png'))
     cond[3] = preprocess(mk)[0]
     
-    cond_im[mk==0]=0
-    img[tk!=0]=0
+    ori_tk = cv2.imread(os.path.join(img_folder, 'teeth_mask.png'))
+    cond_im[ori_tk==0]=0
     cond[-3:] = preprocess(cond_im)
 
     cond_im_2[...,0][mk[...,0]!=0] = ed[...,0][mk[...,0]!=0]

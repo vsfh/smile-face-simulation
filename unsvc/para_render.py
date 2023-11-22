@@ -301,7 +301,7 @@ def render_3d(case, step=-1, show=False):
 if __name__=='__main__':
     # interface('C01002721192')
     path = '/mnt/d/data/smile/out'
-    for case in tqdm(natsort.natsorted(os.listdir(path))[:15]):
+    for case in tqdm(natsort.natsorted(os.listdir(path))[:200]):
         # case = 'C01002721192'
         print(case)
         # interface(case)

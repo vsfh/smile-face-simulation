@@ -44,10 +44,23 @@ def test_single(path, case, checkpoint_path):
     fig.savefig(os.path.join(path, case, f'test.png'))
     plt.close(fig)
 
-def checkpointme(net, accelerator, step_idx):
-    accelerator.wait_for_everyone()
-    unwrapped_model = accelerator.unwrap_model(net)  
-    accelerator.save(unwrapped_model.state_dict(), os.path.join(save_path,f'{step_idx}.pt'))
+def test_multi_img(path, checkpoint_path):
+    net = get_network(checkpoint_path)
+    
+    for case in tqdm(natsort.natsorted(os.listdir(path))[:200]):
+        input = get_input(os.path.join(path, case), '64')
+        cond_img = input['cond']
+        real_img = input['images']
+        with torch.no_grad():
+            fake_img = net.forward(cond_img, return_latents=False)
+        img_dict = {}
+        img_dict['cond'] = cond_img[0][:3,:,:]
+        img_dict['input'] = cond_img[0][-3:,:,:]
+        img_dict['target'] = real_img[0]
+        img_dict['output'] = fake_img[0]
+        fig = plotting_fig(img_dict)
+        fig.savefig(os.path.join('/mnt/d/data/smile/weight/11.15_63000', f'{case}.png'))
+        plt.close(fig)
      
 def test_pt():
     date = '11.16'
@@ -75,6 +88,7 @@ def test_pt():
         
 if __name__=='__main__':
     path = '/mnt/d/data/smile/out'
-    test_pt()
+    test_multi_img(path, '/mnt/e/share/weight/smile/63000.pt')
+    # test_pt()
     # for case in tqdm(natsort.natsorted(os.listdir(path))[:15]):
     #     test_single(path,case)  
