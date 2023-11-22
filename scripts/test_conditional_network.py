@@ -12,10 +12,10 @@ from tqdm import tqdm
 import natsort
 
 data_path = '/data/shenfeihong/smile/out/'
-# checkpoint_path = '/mnt/e/share/weight/smile/300000.pt'
+decoder_checkpoint_path = "/data/shenfeihong/smile/ori_style/checkpoint/ori_style_150000.pt"
 save_path = '.' # '/data/shenfeihong/smile/weight/'
 learning_rate= 1e-5
-start_from_latent_avg = False
+start_from_avg = True
 max_step = 800000
 d_reg_every = 16
 plot_every = 100
@@ -23,7 +23,7 @@ dis_update = 1000
 vali_every = 1000
 
 def get_network(checkpoint_path):
-    net = pSp().cuda()
+    net = pSp(decoder_checkpoint_path=decoder_checkpoint_path,start_from_avg=start_from_avg).cuda()
     net.load_state_dict(torch.load(checkpoint_path))
     net.eval()
     return net
@@ -50,9 +50,10 @@ def checkpointme(net, accelerator, step_idx):
     accelerator.save(unwrapped_model.state_dict(), os.path.join(save_path,f'{step_idx}.pt'))
      
 def test_pt():
-    date = '11.15'
+    date = '11.16'
     path = f'/data/shenfeihong/smile/orthovis/{date}/checkpoint/'
     save_path = f'/data/shenfeihong/smile/orthovis/{date}/result'
+    os.makedirs(save_path, exist_ok=True)
     for file in os.listdir(path):
         if not file.endswith('.pt'):
             continue
@@ -62,7 +63,7 @@ def test_pt():
         real_img = input['images']
         net = get_network(os.path.join(path, file))
         with torch.no_grad():
-            fake_img = net.forward(cond_img, return_latents=False)
+            fake_img, _ = net.forward(cond_img, return_latents=False, concat_img=False)
         img_dict = {}
         img_dict['cond'] = cond_img[0][:3,:,:]
         img_dict['input'] = cond_img[0][-3:,:,:]

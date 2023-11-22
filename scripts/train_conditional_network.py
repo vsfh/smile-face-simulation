@@ -12,13 +12,14 @@ from criteria import w_norm
 from criteria.adversial_loss import get_dis_opt
 
 from accelerate import Accelerator
-from accelerate.utils import DistributedDataParallelKwargs
+from accelerate.utils import DistributedDataParallelKwargs 
 
 from scripts.utils import *
 
 data_path = '/data/shenfeihong/smile/out/'
+data_path = '/data/shenfeihong/smile/YangNew/'
 decoder_checkpoint_path = '/data/shenfeihong/smile/ori_style/checkpoint/ori_style_150000.pt'
-save_path = '/data/shenfeihong/smile/orthovis/11.16'
+save_path = '/data/shenfeihong/smile/orthovis/11.20'
 learning_rate= 1e-5
 start_from_avg = True
 max_step = 200000
@@ -28,8 +29,8 @@ dis_update = 1000
 vali_every = 1000
 
 def get_pipeline():
-    train_loader = get_loader(data_path, 4, 'train')
-    test_loader = get_loader(data_path, 1, 'test')
+    train_loader = get_loader(data_path, 4, 'train', type='Yang')
+    test_loader = get_loader(data_path, 1, 'test', type='Yang')
     net = pSp(decoder_checkpoint_path, start_from_avg=start_from_avg)
     optimizer = torch.optim.Adam(net.encoder.parameters(), lr=learning_rate)
     discriminator, discriminator_opt = get_dis_opt(decoder_checkpoint_path, learning_rate)
@@ -65,11 +66,11 @@ def train():
             cond_img = batch['cond']
             real_img = batch['images']
             if start_from_avg:
-                fake_img, latent = net.forward(cond_img, return_latents=False, concat_img=False)
+                fake_img, latent = net.forward(cond_img, real_img.clone().detach(), return_latents=False, concat_img=False)
             else:
-                fake_img = net.forward(cond_img, return_latents=False, concat_img=False)
+                fake_img, _ = net.forward(cond_img, real_img.clone().detach(), return_latents=False, concat_img=False)
         
-            # former (1, 0.1, 1) (1, 1, 0.01)
+            # former (1, 0.1, 1) (1, 1, 0.01) (1, 0, 0.01)
             # lpips loss#
             lp_loss = lpips_loss(real_img, fake_img)
             # l2 loss #
@@ -114,6 +115,9 @@ def train():
                 
             plotting = step_idx % plot_every == 0
             if plotting:
+                cond_img = accelerator.gather(cond_img)
+                real_img = accelerator.gather(real_img)
+                fake_img = accelerator.gather(fake_img)
                 img_dict = {}
                 img_dict['cond'] = cond_img[0][:3,:,:]
                 img_dict['input'] = cond_img[0][-3:,:,:]

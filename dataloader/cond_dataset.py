@@ -38,24 +38,29 @@ class YangOldNew(Dataset):
         im = preprocess(img)
 
         cond = torch.zeros((7,256,256))
-        if self.mode=='test':
-            cond_im = img.copy()
-            cond_im_2 = img.copy()
-            ed = cv2.imread(os.path.join(img_folder, 'TeethEdgeDown.png'))
-            eu = cv2.imread(os.path.join(img_folder, 'TeethEdgeUp.png'))
-            mk = cv2.imread(os.path.join(img_folder, 'MouthMask.png'))
-            tk = cv2.imread(os.path.join(img_folder, 'TeethMasks.png'))
-            cond[3] = preprocess(mk)[0]
-            
-            cond_im[tk==0]=0
+        cond_im = img.copy()
+        cond_im_2 = img.copy()
+        ed = cv2.imread(os.path.join(img_folder, 'TeethEdgeDown.png'))
+        eu = cv2.imread(os.path.join(img_folder, 'TeethEdgeUp.png'))
+        mk = cv2.imread(os.path.join(img_folder, 'MouthMask.png'))
+        mk_dia = cv2.dilate(mk, kernel=np.ones((5,5)))
+        
+        tk = cv2.imread(os.path.join(img_folder, 'TeethMasks.png'))
+        eu, ed = cv2.dilate(eu, kernel=np.ones((3,3))), cv2.dilate(ed, kernel=np.ones((3,3)))
+        
+        cond[3] = preprocess(mk)[0]
+        
+        cond_im[mk_dia==0]=0
+        if self.mode == 'train':
             cond_im = self.aug(cond_im)
-            img[tk!=0]=0
-            cond[-3:] = preprocess(cond_im)
-
-            cond_im_2[...,0][mk[...,0]!=0] = ed[...,0][mk[...,0]!=0]
-            cond_im_2[...,1][mk[...,0]!=0] = eu[...,0][mk[...,0]!=0]     
-            cond_im_2[...,2][mk[...,0]!=0] = tk[...,0][mk[...,0]!=0] 
-            cond[:3] = preprocess(cond_im_2)
+        img[tk!=0]=0
+        cond[-3:] = preprocess(cond_im)
+        
+        cond_im_2 = np.zeros_like(img)
+        cond_im_2[...,0][mk[...,0]!=0] = ed[...,0][mk[...,0]!=0]
+        cond_im_2[...,1][mk[...,0]!=0] = eu[...,0][mk[...,0]!=0]     
+        cond_im_2[...,2][mk[...,0]!=0] = tk[...,0][mk[...,0]!=0] 
+        cond[:3] = preprocess(cond_im_2)
         
         return {'images': im, 'cond':cond}
     
@@ -107,12 +112,12 @@ class GeneratedDepth(Dataset):
         
         cond_im[tk==0]=0
         cond_im = self.aug(cond_im)
-        img[tk!=0]=0
         cond[-3:] = preprocess(cond_im)
 
+        cond_im_2[mk!=0]=0
         cond_im_2[...,0][mk[...,0]!=0] = ed[...,0][mk[...,0]!=0]
         cond_im_2[...,1][mk[...,0]!=0] = eu[...,0][mk[...,0]!=0]     
-        cond_im_2[...,2][mk[...,0]!=0] = tk[...,0][mk[...,0]!=0] 
+        # cond_im_2[...,2][mk[...,0]!=0] = tk[...,0][mk[...,0]!=0] 
         if self.show:
             print(img_folder)
             cv2.imshow('cond1', cond_im)
@@ -182,17 +187,19 @@ def get_example(img_folder):
     ed = cv2.imread(os.path.join(img_folder, 'down_edge.png'))
     eu = cv2.imread(os.path.join(img_folder, 'up_edge.png'))
     eu, ed = cv2.dilate(eu, kernel=np.ones((3,3))), cv2.dilate(ed, kernel=np.ones((3,3)))
+    tk = cv2.erode(tk, kernel=np.ones((3,3)))
     tk[tk!=0]=255
     mk = cv2.imread(os.path.join(img_folder, 'mouth_mask.png'))
+    ori_tk = cv2.imread(os.path.join(img_folder, 'teeth_mask.png'))
     cond[3] = preprocess(mk)[0]
     
-    cond_im[mk==0]=0
-    img[tk!=0]=0
+    cond_im[ori_tk==0]=0
     cond[-3:] = preprocess(cond_im)
 
+    cond_im_2[mk!=0]=0
     cond_im_2[...,0][mk[...,0]!=0] = ed[...,0][mk[...,0]!=0]
     cond_im_2[...,1][mk[...,0]!=0] = eu[...,0][mk[...,0]!=0]     
-    cond_im_2[...,2][mk[...,0]!=0] = tk[...,0][mk[...,0]!=0] 
+    # cond_im_2[...,2][mk[...,0]!=0] = tk[...,0][mk[...,0]!=0] 
         
     cond[:3] = preprocess(cond_im_2)
     

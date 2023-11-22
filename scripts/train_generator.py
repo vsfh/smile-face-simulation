@@ -17,10 +17,10 @@ from tqdm import tqdm
 
 wandb = None
 
-from dataloader.cond_dataset import get_loader
+from mydataset import YangOldNew
 
-from network.op import conv2d_gradfix
-from network.non_leaking import augment, AdaptiveAugment
+from stylegan2.op import conv2d_gradfix
+from stylegan2.non_leaking import augment, AdaptiveAugment
 
 
 def data_sampler(dataset, shuffle, distributed):
@@ -293,7 +293,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         os.makedirs(f"{args.weight_dir}/sample", exist_ok=True)
         os.makedirs(f"{args.weight_dir}/checkpoint", exist_ok=True)
         
-        if i % 10000 == 0:
+        if i % 100 == 0:
             with torch.no_grad():
                 g_ema.eval()
                 sample, _ = g_ema([sample_z])
@@ -302,7 +302,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                     f"{args.weight_dir}/sample/{str(i).zfill(6)}.png",
                     nrow=int(args.n_sample ** 0.5),
                     normalize=True,
-                    range=(0, 1),
+                    range=(-1, 1),
                 )
 
         if i % 10000 == 0:
@@ -325,20 +325,20 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="StyleGAN2 trainer")
 
-    parser.add_argument("--path", type=str, default='/data/shenfeihong/smile/YangNew/', help="path to the lmdb dataset")
-    parser.add_argument("--weight_dir", type=str, default='/data/shenfeihong/smile/ori_style', help="path to the lmdb dataset")
+    parser.add_argument("--path", type=str, default='/mnt/e/data/smile/YangNew', help="path to the lmdb dataset")
+    parser.add_argument("--weight_dir", type=str, default='./save', help="path to the lmdb dataset")
     
     parser.add_argument('--arch', type=str, default='stylegan2', help='model architectures (stylegan2 | swagan)')
     parser.add_argument(
         "--iter", type=int, default=800000, help="total training iterations"
     )
     parser.add_argument(
-        "--batch", type=int, default=16, help="batch sizes for each gpus"
+        "--batch", type=int, default=2, help="batch sizes for each gpus"
     )
     parser.add_argument(
         "--n_sample",
         type=int,
-        default=25,
+        default=64,
         help="number of the samples generated during training",
     )
     parser.add_argument(
@@ -377,7 +377,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--ckpt",
         type=str,
-        default="/data/shenfeihong/smile/ori_style/checkpoint/ori_style_150000.pt",
+        default=None,
         help="path to the checkpoints to resume training",
     )
     parser.add_argument("--lr", type=float, default=0.002, help="learning rate")
@@ -394,7 +394,7 @@ if __name__ == "__main__":
         "--local_rank", type=int, default=0, help="local rank for distributed training"
     )
     parser.add_argument(
-        "--augment", type=bool, default=True, help="apply non leaking augmentation"
+        "--augment", action="store_true", help="apply non leaking augmentation"
     )
     parser.add_argument(
         "--augment_p",
@@ -431,7 +431,12 @@ if __name__ == "__main__":
 
     args.start_iter = 0
 
-    from network.model_cond import Generator, Discriminator
+    if args.arch == 'stylegan2':
+        from stylegan2.model_ex import Generator, Discriminator
+
+    # elif args.arch == 'swagan':
+    #     from swagan import Generator, Discriminator
+
     generator = Generator(
         args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier
     ).to(device)
@@ -500,5 +505,12 @@ if __name__ == "__main__":
         ]
     )
 
-    loader = get_loader(args.path, args.batch, 'train', type='Yang')
+    dataset = YangOldNew(args.path)
+    loader = data.DataLoader(
+        dataset,
+        batch_size=args.batch,
+        sampler=data_sampler(dataset, shuffle=True, distributed=args.distributed),
+        drop_last=True,
+    )
+
     train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, device)

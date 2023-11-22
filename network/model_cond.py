@@ -253,6 +253,7 @@ class pSp(nn.Module):
     def forward(
             self,
             cond_img,
+            real_img=None,
             styles=None,
             return_latents=False,
             first_layer_feature_ind = 0,  ##### modified
@@ -273,18 +274,18 @@ class pSp(nn.Module):
         skip_layer_feats = feats[2:] # use skipped encoder feature
         if fusion_block is None:
             fusion_block = self.encoder.fusion # use fusion layer to fuse encoder feature and decoder feature.
-        images = self.decoder([styles],
+        images, _ = self.decoder([styles],
                                 input_is_latent = input_is_latent,
                                 return_latents=return_latents,
                                 first_layer_feature=first_layer_feats,
                                 first_layer_feature_ind=first_layer_feature_ind,
                                 skip_layer_feature=skip_layer_feats,
                                 fusion_block=fusion_block) ##### modified
-        if concat_img:
-            images = images*(cond_img[:,3:4,:,:])+cond_img[:,:3,:,:]*(1-cond_img[:,3:4,:,:])
+        if concat_img and not real_img is None:
+            images = images*(cond_img[:,3:4,:,:])+real_img*(1-cond_img[:,3:4,:,:])
         if self.start_from_avg:
             return images, styles - self.mean_latent.repeat(cond_img.shape[0],1,1)
-        return images
+        return images, None
 
 
 class Discriminator(nn.Module):
