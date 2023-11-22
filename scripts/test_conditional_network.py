@@ -87,7 +87,7 @@ def test_pt():
         
 if __name__=='__main__':
     path = '/mnt/d/data/smile/out'
-    test_multi_img(path, '/mnt/e/share/weight/smile/63000.pt')
+    test_multi_img(path, '/mnt/e/share/weight/smile/160000.pt')
     # test_pt()
     # for case in tqdm(natsort.natsorted(os.listdir(path))[:15]):
     #     test_single(path,case)  
