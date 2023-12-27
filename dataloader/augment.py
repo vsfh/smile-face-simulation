@@ -9,7 +9,7 @@ def preprocess(img):
     if len(img_resize.shape)==2:
         img_resize = img_resize[:,:,None].repeat(1,1,3)
     im = np.ascontiguousarray(img_resize.transpose((2, 0, 1))[::-1])  # HWC to CHW -> BGR to RGB -> contiguous
-    im = torch.from_numpy(im)  # to torch
+    im = torch.from_numpy(im).clip(0,255)  # to torch
     im = im.float()  # uint8 to fp16/32
     im /= 255.0  # 0-255 to 0.0-1.0
     return im

@@ -63,12 +63,12 @@ def test_multi_img(path, checkpoint_path):
         plt.close(fig)
      
 def test_pt():
-    date = '11.16'
+    date = '11.23'
     path = f'/data/shenfeihong/smile/orthovis/{date}/checkpoint/'
     save_path = f'/data/shenfeihong/smile/orthovis/{date}/result'
     os.makedirs(save_path, exist_ok=True)
     for file in os.listdir(path):
-        if not file.endswith('.pt'):
+        if not file.endswith('0000.pt'):
             continue
         print(file)
         input = get_example('example')
@@ -88,7 +88,7 @@ def test_pt():
         
 if __name__=='__main__':
     path = '/mnt/d/data/smile/out'
-    test_multi_img(path, '/mnt/e/share/weight/smile/63000.pt')
-    # test_pt()
+    # test_multi_img(path, '/mnt/e/share/weight/smile/63000.pt')
+    test_pt()
     # for case in tqdm(natsort.natsorted(os.listdir(path))[:15]):
     #     test_single(path,case)  

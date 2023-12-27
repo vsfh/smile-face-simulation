@@ -43,23 +43,22 @@ class YangOldNew(Dataset):
         ed = cv2.imread(os.path.join(img_folder, 'TeethEdgeDown.png'))
         eu = cv2.imread(os.path.join(img_folder, 'TeethEdgeUp.png'))
         mk = cv2.imread(os.path.join(img_folder, 'MouthMask.png'))
-        mk_dia = cv2.dilate(mk, kernel=np.ones((5,5)))
+        mk_dia = cv2.dilate(mk, kernel=np.ones((7,7)))
         
         tk = cv2.imread(os.path.join(img_folder, 'TeethMasks.png'))
         eu, ed = cv2.dilate(eu, kernel=np.ones((3,3))), cv2.dilate(ed, kernel=np.ones((3,3)))
         
-        cond[3] = preprocess(mk)[0]
+        cond[3] = preprocess(mk_dia)[0]
         
-        cond_im[mk_dia==0]=0
+        cond_im[tk==0]=0
         if self.mode == 'train':
-            cond_im = self.aug(cond_im)
-        img[tk!=0]=0
+            # cond_im = self.aug(cond_im)
+            cond_im = cond_im + np.random.normal(0, 100, cond_im.shape)
         cond[-3:] = preprocess(cond_im)
         
-        cond_im_2 = np.zeros_like(img)
-        cond_im_2[...,0][mk[...,0]!=0] = ed[...,0][mk[...,0]!=0]
-        cond_im_2[...,1][mk[...,0]!=0] = eu[...,0][mk[...,0]!=0]     
-        cond_im_2[...,2][mk[...,0]!=0] = tk[...,0][mk[...,0]!=0] 
+        cond_im_2[...,0][mk_dia[...,0]!=0] = ed[...,0][mk_dia[...,0]!=0]
+        cond_im_2[...,1][mk_dia[...,0]!=0] = eu[...,0][mk_dia[...,0]!=0]     
+        cond_im_2[...,2][mk_dia[...,0]!=0] = tk[...,0][mk_dia[...,0]!=0] 
         cond[:3] = preprocess(cond_im_2)
         
         return {'images': im, 'cond':cond}
@@ -186,20 +185,18 @@ def get_example(img_folder):
     tk = cv2.imread(os.path.join(img_folder, 'depth.png'))
     ed = cv2.imread(os.path.join(img_folder, 'down_edge.png'))
     eu = cv2.imread(os.path.join(img_folder, 'up_edge.png'))
-    eu, ed = cv2.dilate(eu, kernel=np.ones((3,3))), cv2.dilate(ed, kernel=np.ones((3,3)))
-    tk = cv2.erode(tk, kernel=np.ones((3,3)))
+    eu, ed = cv2.dilate(eu, kernel=np.ones((5,5))), cv2.dilate(ed, kernel=np.ones((5,5)))
     tk[tk!=0]=255
     mk = cv2.imread(os.path.join(img_folder, 'mouth_mask.png'))
-    ori_tk = cv2.imread(os.path.join(img_folder, 'teeth_mask.png'))
-    cond[3] = preprocess(mk)[0]
+    mk_dia = cv2.dilate(mk, kernel=np.ones((7,7)))
     
-    cond_im[ori_tk==0]=0
+    cond[3] = preprocess(mk_dia)[0]
+    
     cond[-3:] = preprocess(cond_im)
 
-    cond_im_2[mk!=0]=0
-    cond_im_2[...,0][mk[...,0]!=0] = ed[...,0][mk[...,0]!=0]
-    cond_im_2[...,1][mk[...,0]!=0] = eu[...,0][mk[...,0]!=0]     
-    # cond_im_2[...,2][mk[...,0]!=0] = tk[...,0][mk[...,0]!=0] 
+    cond_im_2[...,0][mk_dia[...,0]!=0] = ed[...,0][mk_dia[...,0]!=0]
+    cond_im_2[...,1][mk_dia[...,0]!=0] = eu[...,0][mk_dia[...,0]!=0]     
+    cond_im_2[...,2][mk_dia[...,0]!=0] = tk[...,0][mk_dia[...,0]!=0] 
         
     cond[:3] = preprocess(cond_im_2)
     

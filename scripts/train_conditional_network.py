@@ -19,9 +19,9 @@ from scripts.utils import *
 data_path = '/data/shenfeihong/smile/out/'
 data_path = '/data/shenfeihong/smile/YangNew/'
 decoder_checkpoint_path = '/data/shenfeihong/smile/ori_style/checkpoint/ori_style_150000.pt'
-save_path = '/data/shenfeihong/smile/orthovis/11.20'
+save_path = '/data/shenfeihong/smile/orthovis/11.27'
 learning_rate= 1e-5
-start_from_avg = True
+start_from_avg = False
 max_step = 200000
 d_reg_every = 16
 plot_every = 100
@@ -72,15 +72,15 @@ def train():
         
             # former (1, 0.1, 1) (1, 1, 0.01) (1, 0, 0.01)
             # lpips loss#
-            lp_loss = lpips_loss(real_img, fake_img)
+            lp_loss = 0.01 * lpips_loss(real_img, fake_img)
             # l2 loss #
-            l2_loss = F.mse_loss(real_img, fake_img)
+            l2_loss = F.mse_loss(real_img*cond_img[:,3:4,:,:], fake_img*cond_img[:,3:4,:,:])
             # adv loss #
-            adv_loss = 0.01 * F.softplus(-discriminator(fake_img)).mean()
+            adv_loss = 0.0001 * F.softplus(-discriminator(fake_img)).mean()
             
             loss = lp_loss + l2_loss + adv_loss
             if start_from_avg:
-                w_norm_loss = torch.sum(latent.norm(2, dim=(1, 2))) / latent.shape[0]
+                w_norm_loss = 0.001 * torch.sum(latent.norm(2, dim=(1, 2))) / latent.shape[0]
                 loss += w_norm_loss
                 if step_idx % 50 == 0:
                     print(f'w-norm:{w_norm_loss.item()}')
@@ -141,9 +141,9 @@ def validate(net, test_loader, save_path, step_idx):
         real_img = batch['images']
         with torch.no_grad():
             if start_from_avg:
-                fake_img,_ = net.forward(cond_img, return_latents=False, concat_img=False)
+                fake_img, _ = net.forward(cond_img, return_latents=False, concat_img=False)
             else:
-                fake_img = net.forward(cond_img, return_latents=False, concat_img=False)
+                fake_img, _ = net.forward(cond_img, return_latents=False, concat_img=False)
         img_dict = {}
         img_dict['cond'] = cond_img[0][:3,:,:]
         img_dict['input'] = cond_img[0][-3:,:,:]
