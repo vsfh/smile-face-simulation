@@ -187,11 +187,12 @@ def load_gum(gum_dict, sample=True, voxel_size=0.2, export=False):
         
     return upper, lower
     
-def load_teeth(teeth_dict, type='tooth', half=True, sample=False, voxel_size=1.0):
+def load_teeth(teeth_dict, tid_list, type='tooth', half=True, sample=False, voxel_size=1.0):
 
     teeth = {}
-    for key, tooth in teeth_dict.items():
+    for key in tid_list:
         id = int(key)
+        tooth = teeth_dict[key]
 
         vertices = o3d.utility.Vector3dVector(tooth.vertices)
         triangles = o3d.utility.Vector3iVector(tooth.faces)
@@ -247,10 +248,10 @@ down_labels = list(range(31, 39)) + list(range(41, 49))
 colormap = {id: np.array(color[i], dtype=np.float64) / 255 for i, id in enumerate(up_labels + down_labels)}
 
 import trimesh
-def trimesh_load_apply(teeth, step):
+def trimesh_load_apply(teeth, step, tid_list):
     from scipy.spatial.transform import Rotation as R
     meshes = {}
-    for id in teeth.keys():
+    for id in tid_list:
         if id not in teeth:
             continue
 
@@ -259,7 +260,7 @@ def trimesh_load_apply(teeth, step):
 
         translate = transformation[:3]
         quaternions = transformation[3:]
-        quaternions = quaternions[[-1, 0, 1, 2]]
+        # quaternions = quaternions[[-1, 0, 1, 2]]
 
         T = np.eye(4)
         T[:3, :3] = R.from_quat(quaternions).as_matrix()
@@ -317,31 +318,20 @@ def apply_step(teeth, step, keys=None, mode='all', add=True, num_teeth=None, exp
     for id in keys:
         if id not in teeth:
             continue
-        # if str(id) not in step:
-        #     print('missing step', id)
-        #     continue
         mesh = teeth[id]
         mesh.paint_uniform_color(colormap[id])
         transformation = step[str(id)]
-
-        # if np.linalg.norm(transformation[:3])>2:
-        #     translate = transformation[:3]
-        #     quaternions = transformation[3:]
-        # else:
-        #     translate = transformation[4:]
-        #     quaternions = transformation[:4]
-        # quaternions = quaternions[[-1, 0, 1, 2]]
-
-        # T = np.eye(4)
-        # T[:3, :3] = mesh.get_rotation_matrix_from_quaternion(quaternions)
-        # T[:3, -1] = translate
-        # T[-1, -1] = 1
         T = np.array(transformation)
 
         mesh_t = copy.deepcopy(mesh).transform(T)
-        meshes.append(mesh_t)
         if export:
-            trimesh.Trimesh(vertices=mesh_t.vertices, faces=mesh_t.triangles).export(f'export/{id}.stl')
+            mesh_t = trimesh.Trimesh(vertices=mesh_t.vertices, faces=mesh_t.triangles)
+            meshes.append(mesh_t)
+            mesh_t.export(f'/mnt/e/share/data/{id}.stl')
+            
+        else:
+            meshes.append(mesh_t)
+            
     if add:
         mesh_combined = o3d.geometry.TriangleMesh()
         for m in meshes:
