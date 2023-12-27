@@ -5,14 +5,13 @@ import cv2
 import smile_utils
 from pytorch3d.transforms.rotation_conversions import *
 import natsort
-
+from PIL import Image
 import time
 from pytorch3d.structures import Meshes, join_meshes_as_scene, join_meshes_as_batch
 import os
 import glob
 from natsort import natsorted
 import trimesh
-from PIL import Image
 from scipy.spatial.transform import Rotation as R
 from tqdm import tqdm
 import imageio
@@ -22,9 +21,8 @@ from pytorch3d.renderer import (
 	PerspectiveCameras,HardPhongShader, PointLights
 )
 import onnxruntime
-from tid_models import get_tid, get_yolo_tid
 
-is_onnx = False
+is_onnx = True
 onnx_opt_dict = {
     'smile_sim_lip_preserve-yolov5':{'input':['images'],'output':['output'],'path':'/mnt/d/triton/backup_model/smile_sim_lip_preserve-yolov5/1'},
     'smile_sim_lip_preserve-edge_net':{'input':['data'],'output':['output'],'path':'/mnt/d/triton/backup_model/smile_sim_lip_preserve-edge_net/1'},
@@ -45,11 +43,6 @@ def onnx_infer(data, sess_name):
     else:
         print('error', sess_name)
 
-def _seg_tid(image):
-    teeth_model = get_yolo_tid('/mnt/d/triton/backup_model', backend='native')
-    tid = get_tid(teeth_model=teeth_model, img=image)
-
-    return tid
 
 def _find_objs(image):
     yolo_input_shape = (640, 640)
@@ -147,26 +140,24 @@ def detection_and_segmentation(face_img, save_path=None):
     template = cv2.resize(face_img, (int(width * 128 / half), int(height * 128 / half)), cv2.INTER_AREA)
     mouth = template[y: y + 256, x: x + 256]
 
-    # tid, upper, lower = _seg_tid(mouth)
-       
-    # step 2. edgenet seg mouth
     seg_result = _seg_mouth(mouth)
 
     mouth_mask = (seg_result[..., 0] > 0.6).astype(np.float32)
     teeth_mask = (seg_result[..., 4] > 0.6).astype(np.uint8)
     edge = (seg_result[..., 1] > 0.6).astype(np.float32)
     up_edge = (seg_result[..., 3] > 0.6).astype(np.float32)
+    
     if save_path is not None:
+        os.makedirs(save_path, exist_ok=True)
+        
         for i in range(seg_result.shape[-1]):
             a = (seg_result[..., i] > 0.6).astype(np.uint8)
             cv2.imwrite(os.path.join(save_path, f'{res_list[i]}.png'), 255*a)
+            # cv2.imshow(f'img{i}', 255*a)
+            # cv2.waitKey(0)
         cv2.imwrite(os.path.join(save_path, f'smile.png'), mouth[...,::-1])
+        return
         
-    #     cv2.imshow('img', a*255)
-    #     cv2.waitKey(0)
-    
-    # heatmap = tid
-    
     contours, _ = cv2.findContours(mouth_mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
     if len(contours)>1:
@@ -182,13 +173,11 @@ def detection_and_segmentation(face_img, save_path=None):
     return {'mouth_mask': mouth_mask,
             'teeth_mask': teeth_mask,
             'edge': edge,
-            # 'heatmap': heatmap,
             'up_mask': up_edge,
             'mouth_img': mouth,
             'face_img': template,
             'position': (y,x),
-            'width_height': (width, height),
-            # 'upper_lower': (upper, lower)
+            'width_height': (width, height, half),
             }
 
 class SoftEdgeShader(nn.Module):
@@ -198,7 +187,7 @@ class SoftEdgeShader(nn.Module):
         self.zfar = zfar
         self.znear = znear
 
-    def forward(self, fragments, meshes, **kwargs) -> torch.Tensor:
+    def forward(self, fragments,  meshes, **kwargs) -> torch.Tensor:
         blend_params = kwargs.get("blend_params", self.blend_params)
         extra_mask = kwargs.get("extra_mask", None)
 
@@ -323,9 +312,9 @@ class Model(nn.Module):
         loss = torch.sum(((pred - label)) ** 2)
         return loss, pred, label, R, T, down_offset
     
-def fitting(seg_res, tooth_dict, step_list, save_path=None, save_gif=True, device='cuda'):
+def fitting(seg_res, tooth_dict, step_list, tid_list, save_path=None, save_gif=False, device='cuda'):
     step1 = step_list['step_0']
-    teeth = smile_utils.load_teeth(tooth_dict, type='tooth', half=True, sample=True, voxel_size=1.0)
+    teeth = smile_utils.load_teeth(tooth_dict, tid_list, type='tooth', half=True, sample=True, voxel_size=1.0)
     
     mouth_mask = seg_res['mouth_mask']
     teeth_mask = seg_res['teeth_mask']
@@ -363,7 +352,7 @@ def fitting(seg_res, tooth_dict, step_list, save_path=None, save_gif=True, devic
     raster_settings = RasterizationSettings(
         image_size=256,
         blur_radius=0,
-        faces_per_pixel=25,
+        faces_per_pixel=1,
         perspective_correct=True,
         cull_backfaces=True
     )
@@ -375,17 +364,17 @@ def fitting(seg_res, tooth_dict, step_list, save_path=None, save_gif=True, devic
                   axis_angle=axis_angle,
                   raster_settings=raster_settings).to(device)
 
-    params = [{'params': model.angle_x, 'lr': 1e-7, 'name': 'angle_x'},
-              {'params': model.angle_y, 'lr': 1e-7, 'name': 'angle_y'},
-              {'params': model.angle_z, 'lr': 1e-4, 'name': 'angle_z'},
+    params = [{'params': model.angle_x, 'lr': 0, 'name': 'angle_x'},
+              {'params': model.angle_y, 'lr': 0, 'name': 'angle_y'},
+              {'params': model.angle_z, 'lr': 0, 'name': 'angle_z'},
 
               {'params': model.x, 'lr': 3e-4, 'name': 'x'},
               {'params': model.y, 'lr': 3e-4, 'name': 'y'},
-              {'params': model.z, 'lr': 3e-4, 'name': 'z'},
+              {'params': model.z, 'lr': 0, 'name': 'z'},
 
-              {'params': model.dist_x, 'lr': 3e-5, 'name': 'dist_y'},
-              {'params': model.dist_y, 'lr': 3e-5, 'name': 'dist_y'},
-              {'params': model.dist_z, 'lr': 3e-5, 'name': 'dist_y'},
+              {'params': model.dist_x, 'lr': 0, 'name': 'dist_x'},
+              {'params': model.dist_y, 'lr': 0, 'name': 'dist_y'},
+              {'params': model.dist_z, 'lr': 0, 'name': 'dist_z'},
 
               {'params': model.focal_length, 'lr': 1e-5, 'name': 'focal_length'}]
 
@@ -397,7 +386,8 @@ def fitting(seg_res, tooth_dict, step_list, save_path=None, save_gif=True, devic
 
     output_file = 'output.gif'
     out = []
-    for i in range(1000):
+    update = False
+    for i in range(200):
         optimizer.zero_grad()
         loss, pred, label, R, T, dist = model()
 
@@ -419,7 +409,17 @@ def fitting(seg_res, tooth_dict, step_list, save_path=None, save_gif=True, devic
             }
             min_loss = loss.item()
             min_step = i
-            
+        if i > 50 and not update:
+            update = True
+            for group in optimizer.param_groups:
+                if group['name'] in ['angle_x', 'angle_y', 'angle_z']:
+                    group['lr'] = 1e-7
+                elif group['name'] in ['x', 'y', 'z']:
+                    group['lr'] = 1e-5
+                elif group['name'] in ['focal_length']:
+                    group['lr'] = 5e-6
+                else:
+                    pass    
         if (i - min_step) > 100:
             break
         loss.backward()
@@ -582,36 +582,48 @@ def load_teeth_step(img_folder):
     return steps_dict, tooth_dict
 
 def infer():
-    path = '/mnt/d/data/smile/out'
+    import json
+    path = '/mnt/d/data/smile/out1'
     for case in tqdm(natsort.natsorted(os.listdir(path))[:200]):
-        # case = '0b01e19ba8f3daa5aed0653dd253a78e'
-        img_folder = os.path.join('/mnt/d/data/smile/Teeth_simulation_10K/',case)
+        # case = 'C01002723868'
+        img_folder = os.path.join('/mnt/d/data/smile/TeethSimulation/',case)
         steps_dict, tooth_dict = load_teeth_step(img_folder)
-        save_path = os.path.join('/mnt/d/data/smile/out',case)
-
+        save_path = os.path.join(path,case)
+        with open(os.path.join(img_folder,'models','tid_list.json'),'r') as f:
+            tid_list = json.load(f)
         seg_dict = {}
         seg_dict['mouth_mask'] = cv2.imread(os.path.join(save_path,'mouth_mask.png'))[...,0]/255
         seg_dict['edge'] = cv2.imread(os.path.join(save_path,'edge.png'))[...,0]/255
         seg_dict['teeth_mask'] = cv2.imread(os.path.join(save_path,'teeth_mask.png'))[...,0]/255
         seg_dict['up_mask'] = cv2.imread(os.path.join(save_path,'upper_edge.png'))[...,0]/255
-        fitting(seg_dict, tooth_dict, steps_dict, save_path)
+        fitting(seg_dict, tooth_dict, steps_dict, tid_list, save_path, save_gif=True)
+        # break
 
 def test_single():
-    path = '/mnt/d/data/smile/Teeth_simulation_10K/'
+    path = '/mnt/d/data/smile/out1'
+    for img_path in glob.glob(f'{path}/*/smile.png'):
+        img = cv2.imread(img_path)
+        print(img_path)
+        cv2.imshow('img', img)
+        cv2.waitKey(0)
 
-    case = 'C01002745615'
-
-    img_folder = os.path.join(path,case)
-    steps_dict, tooth_dict = load_teeth_step(img_folder)
-    save_path = os.path.join('/mnt/d/data/smile/out',case)
-    os.makedirs(save_path, exist_ok=True)
-    seg_dict = {}
-    seg_dict['mouth_mask'] = cv2.imread(os.path.join(save_path,'mouth_mask.png'))[...,0]/255
-    seg_dict['edge'] = cv2.imread(os.path.join(save_path,'edge.png'))[...,0]/255
-    seg_dict['teeth_mask'] = cv2.imread(os.path.join(save_path,'teeth_mask.png'))[...,0]/255
-    seg_dict['up_mask'] = cv2.imread(os.path.join(save_path,'upper_edge.png'))[...,0]/255
-    fitting(seg_dict, tooth_dict, steps_dict, save_path)
-
-
+def img_process():
+    path = '/mnt/d/data/smile/out1'
+    for img_folder in tqdm(glob.glob(f'{path}/C*')):
+        # img_folder = '/mnt/d/data/smile/out1/C01002721978'
+        img = cv2.imread(os.path.join(img_folder, 'face1.jpg'))
+        # img.save('test.png')
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        # img = np.rot90(img, 1)
+        save_path = os.path.join('/mnt/d/data/smile/out1', os.path.basename(img_folder))
+        detection_and_segmentation(img, save_path)
+        
+        # try:
+        #     detection_and_segmentation(img, save_path)
+        # except Exception as e:
+        #     print(e)
+        # break
 if __name__=="__main__":
-    infer()  
+    # test_single()
+    # img_process()  
+    infer()
