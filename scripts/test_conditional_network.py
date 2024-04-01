@@ -13,8 +13,8 @@ import natsort
 
 data_path = '/data/shenfeihong/smile/out/'
 decoder_checkpoint_path = "/data/shenfeihong/smile/ori_style/checkpoint/ori_style_150000.pt"
-decoder_checkpoint_path = "/mnt/e/share/weight/smile/ori_style_150000.pt"
-save_path = '.' # '/data/shenfeihong/smile/weight/'
+# decoder_checkpoint_path = "/mnt/e/share/weight/smile/ori_style_150000.pt"
+save_path = './local_data' # '/data/shenfeihong/smile/weight/'
 learning_rate= 1e-5
 start_from_avg = True
 max_step = 800000
@@ -72,7 +72,7 @@ def test_multi_img(path, checkpoint_path):
 def test_pt():
     date = '11.23'
     path = f'/data/shenfeihong/smile/orthovis/{date}/checkpoint/'
-    save_path = f'/data/shenfeihong/smile/orthovis/{date}/result'
+    save_path = f'./local_data/{date}/result'
     os.makedirs(save_path, exist_ok=True)
     for file in os.listdir(path):
         if not file.endswith('0000.pt'):
@@ -95,11 +95,11 @@ def test_pt():
         
 if __name__=='__main__':
     path = '/mnt/e/data/smile/YangNew'
-    path = '/mnt/d/data/smile/out1'
+    path = '/mnt/hdd/data/smile/out1'
     # get_input(os.path.join(path, 'C01003278134'), True)
     # get_input(os.path.join(path, 'C01002721192'), True)
-    test_multi_img(path, '/mnt/e/share/weight/smile/200000.pt')
-    # test_pt()
+    # test_multi_img(path, '/mnt/e/share/weight/smile/200000.pt')
+    test_pt()
     # for case in tqdm(natsort.natsorted(os.listdir(path))[:15]):
     #     test_single(path,case)  
     # test_single(path, 'C01002721350', '/mnt/e/share/weight/smile/200000.pt', '/mnt/e/paper/smile/figure/mouth_out_2.png')  

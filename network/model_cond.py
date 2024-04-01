@@ -267,6 +267,11 @@ class pSp(nn.Module):
             if self.start_from_avg:
                 styles = styles + self.mean_latent.repeat(cond_img.shape[0],1,1)
             input_is_latent = True
+        elif styles == 'wo_condition':
+            styles = self.encoder(cond_img[:,:3,:,:],return_feat=False, return_full=True) ##### modified
+            if self.start_from_avg:
+                styles = styles + self.mean_latent.repeat(cond_img.shape[0],1,1)
+            input_is_latent = True           
         feats = self.encoder(cond_img[:,:4,:,:], return_feat=True, return_full=True) ##### modified
         first_layer_feats, skip_layer_feats = None, None ##### modified            
 

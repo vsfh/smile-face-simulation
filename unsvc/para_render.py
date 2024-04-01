@@ -193,14 +193,14 @@ def get_renderer(output_type='EdgeAndDepth', device='cuda', focal_length=12, lig
     return renderer
    
 def interface(case):
-    img = cv2.imread(f'/mnt/d/data/smile/out1/{case}/smile.png')
-    mk = cv2.imread(f'/mnt/d/data/smile/out1/{case}/mouth_mask.png')
-    with open(f'/mnt/d/data/smile/TeethSimulation/{case}/models/tid_list.json', 'r')as f:
+    img = cv2.imread(f'/mnt/hdd/data/smile/out1/{case}/smile.png')
+    mk = cv2.imread(f'/mnt/hdd/data/smile/out1/{case}/mouth_mask.png')
+    with open(f'/mnt/hdd/data/smile/TeethSimulation/{case}/models/tid_list.json', 'r')as f:
         tid_list = json.load(f)
     mk_dia = cv2.dilate(mk, np.ones((7,7)))
-    best_params = torch.load(f'/mnt/d/data/smile/out1/{case}/para.pt')
-    step = [file for file in natsort.natsorted(os.listdir(f'/mnt/d/data/smile/TeethSimulation/{case}')) if file.endswith('txt')][-1]
-    up_tensor, down_tensor = get_target_teeth(f'/mnt/d/data/smile/TeethSimulation/{case}', tid_list, step, half=False)
+    best_params = torch.load(f'/mnt/hdd/data/smile/out1/{case}/para.pt')
+    step = [file for file in natsort.natsorted(os.listdir(f'/mnt/hdd/data/smile/TeethSimulation/{case}')) if file.endswith('txt')][-1]
+    up_tensor, down_tensor = get_target_teeth(f'/mnt/hdd/data/smile/TeethSimulation/{case}', tid_list, step, half=False)
     T = best_params['T']
     dist = best_params['dist']
     focal_length=12
@@ -273,17 +273,17 @@ def interface(case):
                 best_params['focal_length'] = focal_length
                 print(lighta, lightb, lightc, color)
                 break
-    torch.save(best_params, f'/mnt/d/data/smile/out1/{case}/para.pt')
+    torch.save(best_params, f'/mnt/hdd/data/smile/out1/{case}/para.pt')
     return out_im
 
 def render_depth_mask(case, save_path,step_idx=-1, show=False):
-    mouth_mask = cv2.imread(f'/mnt/d/data/smile/out1/{case}/mouth_mask.png')
-    with open(f'/mnt/d/data/smile/TeethSimulation/{case}/models/tid_list.json', 'r')as f:
+    mouth_mask = cv2.imread(f'/mnt/hdd/data/smile/out1/{case}/mouth_mask.png')
+    with open(f'/mnt/hdd/data/smile/TeethSimulation/{case}/models/tid_list.json', 'r')as f:
         tid_list = json.load(f)
-    best_params = torch.load(f'/mnt/d/data/smile/out1/{case}/para.pt')
-    step = [file for file in natsort.natsorted(os.listdir(f'/mnt/d/data/smile/TeethSimulation/{case}')) if file.endswith('txt')][step_idx]
-    os.makedirs(f'/mnt/d/data/smile/out1/{case}/step', exist_ok=True)
-    up_tensor, down_tensor = get_target_teeth(f'/mnt/d/data/smile/TeethSimulation/{case}', tid_list, step, half=False)
+    best_params = torch.load(f'/mnt/hdd/data/smile/out1/{case}/para.pt')
+    step = [file for file in natsort.natsorted(os.listdir(f'/mnt/hdd/data/smile/TeethSimulation/{case}')) if file.endswith('txt')][step_idx]
+    os.makedirs(f'/mnt/hdd/data/smile/out1/{case}/step', exist_ok=True)
+    up_tensor, down_tensor = get_target_teeth(f'/mnt/hdd/data/smile/TeethSimulation/{case}', tid_list, step, half=False)
     renderer = get_renderer('Depth', focal_length=best_params['focal_length'])
     T = best_params['T']
     dist = best_params['dist']
@@ -328,14 +328,14 @@ def smooth(path):
     return smooth_image
     
 def render_edge(case, save_path1, save_path2, step_idx=-1, show=False):
-    mouth_mask = cv2.imread(f'/mnt/d/data/smile/out1/{case}/mouth_mask.png')
+    mouth_mask = cv2.imread(f'/mnt/hdd/data/smile/out1/{case}/mouth_mask.png')
     
-    best_params = torch.load(f'/mnt/d/data/smile/out1/{case}/para.pt')
-    step = [file for file in natsort.natsorted(os.listdir(f'/mnt/d/data/smile/TeethSimulation/{case}')) if file.endswith('txt')][step_idx]
-    os.makedirs(f'/mnt/d/data/smile/out1/{case}/step', exist_ok=True)
-    with open(f'/mnt/d/data/smile/TeethSimulation/{case}/models/tid_list.json', 'r')as f:
+    best_params = torch.load(f'/mnt/hdd/data/smile/out1/{case}/para.pt')
+    step = [file for file in natsort.natsorted(os.listdir(f'/mnt/hdd/data/smile/TeethSimulation/{case}')) if file.endswith('txt')][step_idx]
+    os.makedirs(f'/mnt/hdd/data/smile/out1/{case}/step', exist_ok=True)
+    with open(f'/mnt/hdd/data/smile/TeethSimulation/{case}/models/tid_list.json', 'r')as f:
         tid_list = json.load(f)
-    up_tensor, down_tensor = get_target_teeth(f'/mnt/d/data/smile/TeethSimulation/{case}', tid_list, step, half=False)
+    up_tensor, down_tensor = get_target_teeth(f'/mnt/hdd/data/smile/TeethSimulation/{case}', tid_list, step, half=False)
     renderer = get_renderer('Edge', focal_length=best_params['focal_length'], device='cuda:0')
     T = best_params['T']
     dist = best_params['dist']
@@ -359,12 +359,12 @@ def render_edge(case, save_path1, save_path2, step_idx=-1, show=False):
     return   
 
 def render_3d(case, save_path,step=-1, show=False):
-    with open(f'/mnt/d/data/smile/TeethSimulation/{case}/models/tid_list.json', 'r')as f:
+    with open(f'/mnt/hdd/data/smile/TeethSimulation/{case}/models/tid_list.json', 'r')as f:
         tid_list = json.load(f)
-    best_params = torch.load(f'/mnt/d/data/smile/out1/{case}/para.pt')
-    step_idx = [file for file in natsort.natsorted(os.listdir(f'/mnt/d/data/smile/TeethSimulation/{case}')) if file.endswith('txt')][step]
-    os.makedirs(f'/mnt/d/data/smile/out1/{case}/step', exist_ok=True)
-    up_tensor, down_tensor = get_target_teeth(f'/mnt/d/data/smile/TeethSimulation/{case}', tid_list, step_idx, type='scene', half=False)
+    best_params = torch.load(f'/mnt/hdd/data/smile/out1/{case}/para.pt')
+    step_idx = [file for file in natsort.natsorted(os.listdir(f'/mnt/hdd/data/smile/TeethSimulation/{case}')) if file.endswith('txt')][step]
+    os.makedirs(f'/mnt/hdd/data/smile/out1/{case}/step', exist_ok=True)
+    up_tensor, down_tensor = get_target_teeth(f'/mnt/hdd/data/smile/TeethSimulation/{case}', tid_list, step_idx, type='scene', half=False)
     renderer = get_renderer('HardPhong', focal_length=best_params['focal_length'])
     T = best_params['T']
     dist = best_params['dist']
@@ -382,17 +382,17 @@ def render_3d(case, save_path,step=-1, show=False):
     return  
     
 if __name__=='__main__':
-    path = '/mnt/d/data/smile/out1'
+    path = '/mnt/hdd/data/smile/out1'
     case = 'C01002721259'
-    # step = [file for file in natsort.natsorted(os.listdir(f'/mnt/d/data/smile/TeethSimulation/{case}')) if file.endswith('txt')][-1]
-    # with open(f'/mnt/d/data/smile/TeethSimulation/{case}/models/tid_list.json', 'r')as f:
+    # step = [file for file in natsort.natsorted(os.listdir(f'/mnt/hdd/data/smile/TeethSimulation/{case}')) if file.endswith('txt')][-1]
+    # with open(f'/mnt/hdd/data/smile/TeethSimulation/{case}/models/tid_list.json', 'r')as f:
     #     tid_list = json.load(f)    
-    # show_target_teeth(f'/mnt/d/data/smile/TeethSimulation/{case}',tid_list, step, half=True)
-    # render_3d('C01002722687',f'/mnt/d/data/smile/out1/C01002722687/step/3d_0.png', 0)
+    # show_target_teeth(f'/mnt/hdd/data/smile/TeethSimulation/{case}',tid_list, step, half=True)
+    # render_3d('C01002722687',f'/mnt/hdd/data/smile/out1/C01002722687/step/3d_0.png', 0)
     for case in tqdm(natsort.natsorted(os.listdir(path))[:1]):
         # case = 'C01002721259'
         
-        save_path = f'/mnt/d/data/smile/out1/{case}/step'
+        save_path = f'/mnt/hdd/data/smile/out1/{case}/step'
         
         os.makedirs(save_path, exist_ok=True)
         # print(case)

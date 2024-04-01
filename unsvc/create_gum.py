@@ -23,7 +23,7 @@ def generate_gum_with_deform(teeth_dict, jaw_name):
     return DeformDLL(result[0], get_result(result)).get_gum()
 
 def infer(case, step_idx=-1, show=False):
-    img_folder = f'/mnt/d/data/smile/TeethSimulation/{case}'
+    img_folder = f'/mnt/hdd/data/smile/TeethSimulation/{case}'
     save_path = os.path.join(img_folder, 'models', 'final')
     os.makedirs(save_path, exist_ok=True)
     step_idx = [file for file in natsort.natsorted(os.listdir(img_folder)) if file.endswith('txt')][step_idx]
@@ -47,7 +47,7 @@ def infer(case, step_idx=-1, show=False):
         scene.show()
     
 if __name__=='__main__':
-    for case in tqdm.tqdm(os.listdir(f'/mnt/d/data/smile/TeethSimulation/')):
+    for case in tqdm.tqdm(os.listdir(f'/mnt/hdd/data/smile/TeethSimulation/')):
         print(case)
         infer(case)
         # break

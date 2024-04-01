@@ -127,9 +127,51 @@ class GeneratedDepth(Dataset):
         
         return {'images': im, 'cond':cond}   
 
+class Pair(Dataset):
+    def __init__(self, path='/media/gregory/smile/mono_pair/', mode='train'):
+        self.path = path
+        
+        self.all_files = []
+        if mode=='test':
+            folder_list = natsorted(os.listdir(self.path))[-9:]
+        else:
+            folder_list = natsorted(os.listdir(self.path))[:-9]
+            
+        for folder in folder_list:
+            self.all_files.append(os.path.join(self.path, folder,))
+
+        print('total image:', len(self.all_files))
+        self.mode = mode
+        self.show = False
+        self.aug = RandomPerspective(translate=0.05, degrees=5, scale=0.05)
+    
+    def __len__(self):
+        return len(self.all_files)
+    
+    def __getitem__(self, index):
+        img_folder = self.all_files[index]
+        img = cv2.imread(os.path.join(img_folder, 'b.png'))
+        img = cv2.resize(img, (256, 256), interpolation=cv2.INTER_LINEAR)
+        im = preprocess(img)
+        
+        cond = torch.zeros((4,256,256))
+        mk = cv2.imread(os.path.join(img_folder, 'd.png'))
+        cond[3] = preprocess(mk)[0]
+        
+        img = cv2.imread(os.path.join(img_folder, 'c.png'))
+        img = cv2.resize(img, (256, 256), interpolation=cv2.INTER_LINEAR)
+        cond[:3] = preprocess(img)
+        
+
+        
+        return {'images': im, 'cond':cond}   
+    
+
 def get_loader(path, bs ,mode, type='tianshi'):
     if type=='Yang':
         ds = YangOldNew(path, mode)
+    elif type=='pair':
+        ds = Pair(path, mode)
     else:
         ds = GeneratedDepth(path, mode)
     dl = DataLoader(ds,

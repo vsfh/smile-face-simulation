@@ -24,10 +24,10 @@ import onnxruntime
 
 is_onnx = True
 onnx_opt_dict = {
-    'smile_sim_lip_preserve-yolov5':{'input':['images'],'output':['output'],'path':'/mnt/d/triton/backup_model/smile_sim_lip_preserve-yolov5/1'},
-    'smile_sim_lip_preserve-edge_net':{'input':['data'],'output':['output'],'path':'/mnt/d/triton/backup_model/smile_sim_lip_preserve-edge_net/1'},
-    'cls-ensemble':{'input':['images'],'output':['output'],'path':'/mnt/d/triton/backup_model/cls-yolov5s/1'},
-    'new_smile_wo_edge_gan':{'input':['input_image','mask'],'output':['align_img'],'path':'/mnt/d/triton/backup_model/new_smile_wo_edge_gan/1'},
+    'smile_sim_lip_preserve-yolov5':{'input':['images'],'output':['output'],'path':'/mnt/hdd/triton/backup_model/smile_sim_lip_preserve-yolov5/1'},
+    'smile_sim_lip_preserve-edge_net':{'input':['data'],'output':['output'],'path':'/mnt/hdd/triton/backup_model/smile_sim_lip_preserve-edge_net/1'},
+    'cls-ensemble':{'input':['images'],'output':['output'],'path':'/mnt/hdd/triton/backup_model/cls-yolov5s/1'},
+    'new_smile_wo_edge_gan':{'input':['input_image','mask'],'output':['align_img'],'path':'/mnt/hdd/triton/backup_model/new_smile_wo_edge_gan/1'},
 }
 if is_onnx:
     onnx_sess_dict = {}
@@ -583,10 +583,10 @@ def load_teeth_step(img_folder):
 
 def infer():
     import json
-    path = '/mnt/d/data/smile/out1'
+    path = '/mnt/hdd/data/smile/out1'
     for case in tqdm(natsort.natsorted(os.listdir(path))[:200]):
         # case = 'C01002723868'
-        img_folder = os.path.join('/mnt/d/data/smile/TeethSimulation/',case)
+        img_folder = os.path.join('/mnt/hdd/data/smile/TeethSimulation/',case)
         steps_dict, tooth_dict = load_teeth_step(img_folder)
         save_path = os.path.join(path,case)
         with open(os.path.join(img_folder,'models','tid_list.json'),'r') as f:
@@ -600,7 +600,7 @@ def infer():
         # break
 
 def test_single():
-    path = '/mnt/d/data/smile/out1'
+    path = '/mnt/hdd/data/smile/out1'
     for img_path in glob.glob(f'{path}/*/smile.png'):
         img = cv2.imread(img_path)
         print(img_path)
@@ -608,14 +608,14 @@ def test_single():
         cv2.waitKey(0)
 
 def img_process():
-    path = '/mnt/d/data/smile/out1'
+    path = '/mnt/hdd/data/smile/out1'
     for img_folder in tqdm(glob.glob(f'{path}/C*')):
-        # img_folder = '/mnt/d/data/smile/out1/C01002721978'
+        # img_folder = '/mnt/hdd/data/smile/out1/C01002721978'
         img = cv2.imread(os.path.join(img_folder, 'face1.jpg'))
         # img.save('test.png')
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         # img = np.rot90(img, 1)
-        save_path = os.path.join('/mnt/d/data/smile/out1', os.path.basename(img_folder))
+        save_path = os.path.join('/mnt/hdd/data/smile/out1', os.path.basename(img_folder))
         detection_and_segmentation(img, save_path)
         
         # try:

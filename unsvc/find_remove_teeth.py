@@ -113,11 +113,11 @@ def find_remove_teeth(teeth_dict):
 if __name__ == '__main__':
     def main():
         root_dir = '/media/wuhuikai/data/data/TeethArrangementStepData'
-        root_dir = '/mnt/d/data/smile/Teeth_simulation_10K/'
+        root_dir = '/mnt/hdd/data/smile/Teeth_simulation_10K/'
         for path in tqdm.tqdm(sorted(glob.glob(os.path.join(root_dir, 'C*')))):
             tooth_list = find_remove_teeth(load_all_teeth(path, 'Root', -1))
             with open(os.path.join(path, 'tid_list.json'), 'w') as f:
                 json.dump(tooth_list, f)
-    # tooth_list = find_remove_teeth(load_all_teeth('/mnt/d/data/smile/Teeth_simulation_10K/C01002721260', 'Root', -1))
+    # tooth_list = find_remove_teeth(load_all_teeth('/mnt/hdd/data/smile/Teeth_simulation_10K/C01002721260', 'Root', -1))
     # print(tooth_list)
     main()

@@ -10,12 +10,12 @@ import shutil
 if __name__=='__main__':
     def a():
         case = 'C01002721350'
-        eu = cv2.imread(f'/mnt/d/data/smile/out1/{case}/upper_edge.png')
-        ed = cv2.imread(f'/mnt/d/data/smile/out1/{case}/down_edge.png')
-        mk = cv2.imread(f'/mnt/d/data/smile/out1/{case}/mouth_mask.png')
-        tk = cv2.imread(f'/mnt/d/data/smile/out1/{case}/teeth_mask.png')
-        img = cv2.imread(f'/mnt/d/data/smile/out1/{case}/smile.png')
-        depth = cv2.imread(f'/mnt/d/data/smile/out1/{case}/step/depth.png')
+        eu = cv2.imread(f'/mnt/hdd/data/smile/out1/{case}/upper_edge.png')
+        ed = cv2.imread(f'/mnt/hdd/data/smile/out1/{case}/down_edge.png')
+        mk = cv2.imread(f'/mnt/hdd/data/smile/out1/{case}/mouth_mask.png')
+        tk = cv2.imread(f'/mnt/hdd/data/smile/out1/{case}/teeth_mask.png')
+        img = cv2.imread(f'/mnt/hdd/data/smile/out1/{case}/smile.png')
+        depth = cv2.imread(f'/mnt/hdd/data/smile/out1/{case}/step/depth.png')
         
         # ed, eu = cv2.dilate(ed, np.ones((3,3))), cv2.dilate(eu, np.ones((3,3)))
         a = np.zeros((256,256,3), dtype=np.uint8)
@@ -26,8 +26,8 @@ if __name__=='__main__':
         a[mk==0] = img[mk==0]
         b = img.copy()
         b[tk==0] = 0
-        cv2.imwrite(f'/mnt/d/data/smile/out1/{case}/step/input_style.png', a)
-        cv2.imwrite(f'/mnt/d/data/smile/out1/{case}/step/edge.png', eu+ed)
+        cv2.imwrite(f'/mnt/hdd/data/smile/out1/{case}/step/input_style.png', a)
+        cv2.imwrite(f'/mnt/hdd/data/smile/out1/{case}/step/edge.png', eu+ed)
     
     def b():
         path = '/mnt/e/data/classification/ori_data/2023-05-04-fussen_classification'
@@ -37,7 +37,7 @@ if __name__=='__main__':
                 if img_name.startswith('正位片'):
                     shutil.copy(os.path.join(path,file,img_name), os.path.join(spath, f'{file}.png'))           
         
-        face = cv2.imread('/mnt/d/data/smile/TeethSimulation/C01002722687/微笑像.jpg')
+        face = cv2.imread('/mnt/hdd/data/smile/TeethSimulation/C01002722687/微笑像.jpg')
 
     def c():    
         res = detection_and_segmentation(face)
@@ -156,13 +156,13 @@ if __name__=='__main__':
 
 
             # 读取底层图片和顶层图片
-            base_image = cv2.imread(f'/mnt/d/data/smile/out1/{case}/smile.png')
-            overlay_image = cv2.imread(f'/mnt/d/data/smile/out1/{case}/step/3d.png')
+            base_image = cv2.imread(f'/mnt/hdd/data/smile/out1/{case}/smile.png')
+            overlay_image = cv2.imread(f'/mnt/hdd/data/smile/out1/{case}/step/3d.png')
             a = 0.49
             new_img = np.zeros_like(base_image)
             new_img[overlay_image==0] = base_image[overlay_image==0]
             new_img[overlay_image!=0] = base_image[overlay_image!=0]*a + overlay_image[overlay_image!=0]*(1-a)
-            cv2.imwrite(f"/mnt/d/data/smile/out1/{case}/target.png", new_img.astype(np.uint8))
+            cv2.imwrite(f"/mnt/hdd/data/smile/out1/{case}/target.png", new_img.astype(np.uint8))
             
             # while True:
             #     new_img = np.zeros_like(base_image)
@@ -180,7 +180,7 @@ if __name__=='__main__':
                     
             #         break
 
-        for case in os.listdir('/mnt/d/data/smile/out1/'):
+        for case in os.listdir('/mnt/hdd/data/smile/out1/'):
             concat(case)
         
     f()
