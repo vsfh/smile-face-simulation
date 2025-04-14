@@ -22,12 +22,12 @@ from pytorch3d.renderer import (
 )
 import onnxruntime
 
-is_onnx = True
+is_onnx = False
 onnx_opt_dict = {
-    'smile_sim_lip_preserve-yolov5':{'input':['images'],'output':['output'],'path':'/mnt/hdd/triton/backup_model/smile_sim_lip_preserve-yolov5/1'},
-    'smile_sim_lip_preserve-edge_net':{'input':['data'],'output':['output'],'path':'/mnt/hdd/triton/backup_model/smile_sim_lip_preserve-edge_net/1'},
-    'cls-ensemble':{'input':['images'],'output':['output'],'path':'/mnt/hdd/triton/backup_model/cls-yolov5s/1'},
-    'new_smile_wo_edge_gan':{'input':['input_image','mask'],'output':['align_img'],'path':'/mnt/hdd/triton/backup_model/new_smile_wo_edge_gan/1'},
+    'smile_sim_lip_preserve-yolov5':{'input':['images'],'output':['output'],'path':'/window/triton/backup_model/smile_sim_lip_preserve-yolov5/1'},
+    'smile_sim_lip_preserve-edge_net':{'input':['data'],'output':['output'],'path':'/window/triton/backup_model/smile_sim_lip_preserve-edge_net/1'},
+    'cls-ensemble':{'input':['images'],'output':['output'],'path':'/window/triton/backup_model/cls-yolov5s/1'},
+    'new_smile_wo_edge_gan':{'input':['input_image','mask'],'output':['align_img'],'path':'/window/triton/backup_model/new_smile_wo_edge_gan/1'},
 }
 if is_onnx:
     onnx_sess_dict = {}
@@ -341,8 +341,8 @@ def fitting(seg_res, tooth_dict, step_list, tid_list, save_path=None, save_gif=F
     else:
         mouth_mid = np.max(index)
 
-    focal_length = 13
-    init_z = 475
+    focal_length = 30
+    init_z = 1000
     scale = focal_length * 128 / init_z
     init_y = (128 - mouth_mid) / scale + ref
 
@@ -583,10 +583,10 @@ def load_teeth_step(img_folder):
 
 def infer():
     import json
-    path = '/mnt/hdd/data/smile/out1'
+    path = '/window/data/smile/out1'
     for case in tqdm(natsort.natsorted(os.listdir(path))[:200]):
-        # case = 'C01002723868'
-        img_folder = os.path.join('/mnt/hdd/data/smile/TeethSimulation/',case)
+        case = 'C01002721204'
+        img_folder = os.path.join('/window/data/smile/TeethSimulation/',case)
         steps_dict, tooth_dict = load_teeth_step(img_folder)
         save_path = os.path.join(path,case)
         with open(os.path.join(img_folder,'models','tid_list.json'),'r') as f:
@@ -597,10 +597,10 @@ def infer():
         seg_dict['teeth_mask'] = cv2.imread(os.path.join(save_path,'teeth_mask.png'))[...,0]/255
         seg_dict['up_mask'] = cv2.imread(os.path.join(save_path,'upper_edge.png'))[...,0]/255
         fitting(seg_dict, tooth_dict, steps_dict, tid_list, save_path, save_gif=True)
-        # break
+        break
 
 def test_single():
-    path = '/mnt/hdd/data/smile/out1'
+    path = '/window/data/smile/out1'
     for img_path in glob.glob(f'{path}/*/smile.png'):
         img = cv2.imread(img_path)
         print(img_path)
@@ -608,14 +608,14 @@ def test_single():
         cv2.waitKey(0)
 
 def img_process():
-    path = '/mnt/hdd/data/smile/out1'
+    path = '/window/data/smile/out1'
     for img_folder in tqdm(glob.glob(f'{path}/C*')):
-        # img_folder = '/mnt/hdd/data/smile/out1/C01002721978'
+        # img_folder = '/window/data/smile/out1/C01002721978'
         img = cv2.imread(os.path.join(img_folder, 'face1.jpg'))
         # img.save('test.png')
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         # img = np.rot90(img, 1)
-        save_path = os.path.join('/mnt/hdd/data/smile/out1', os.path.basename(img_folder))
+        save_path = os.path.join('/window/data/smile/out1', os.path.basename(img_folder))
         detection_and_segmentation(img, save_path)
         
         # try:
