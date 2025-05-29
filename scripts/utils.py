@@ -31,8 +31,8 @@ def tensor2im(var):
 	return Image.fromarray(var.astype('uint8'))
 
 def plotting_fig(img_dict):
-	fig = plt.figure(figsize=(8, 4))
-	gs = fig.add_gridspec(1, 4)
+	fig = plt.figure(figsize=(8, 5))
+	gs = fig.add_gridspec(1, 5)
 
 	fig.add_subplot(gs[0, 0])
 	plt.imshow(tensor2im(img_dict['cond']), cmap="gray")
@@ -41,9 +41,12 @@ def plotting_fig(img_dict):
 	plt.imshow(tensor2im(img_dict['input']), cmap="gray")
 	plt.title('Input')
 	fig.add_subplot(gs[0, 2])
+	plt.imshow(tensor2im(img_dict['depth']))
+	plt.title('depth')
+	fig.add_subplot(gs[0, 3])
 	plt.imshow(tensor2im(img_dict['target']))
 	plt.title('Target')
-	fig.add_subplot(gs[0, 3])
+	fig.add_subplot(gs[0, 4])
 	plt.imshow(tensor2im(img_dict['output']))
 	plt.title('Output')
 	plt.tight_layout()

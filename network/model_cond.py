@@ -240,7 +240,7 @@ class pSp(nn.Module):
     def __init__(            
             self,decoder_checkpoint_path=None, start_from_avg=False):
         super(pSp, self).__init__()
-        self.encoder = GradualStyleEncoder(50, 'ir_se', use_skip=True, use_skip_torgb=True, input_nc=4)
+        self.encoder = GradualStyleEncoder(50, 'ir_se', 9, use_skip=True, use_skip_torgb=True)
         self.decoder = Generator(256, 512, 8)
         if not decoder_checkpoint_path is None:
             self.decoder.load_state_dict(torch.load(decoder_checkpoint_path)['g_ema'])
@@ -263,16 +263,15 @@ class pSp(nn.Module):
 
     ):
         if styles is None:
-            styles = self.encoder(cond_img[:,-3:,:,:]*cond_img[:,2:3,:,:],return_feat=False, return_full=True) ##### modified
+            styles, feats = self.encoder(cond_img) ##### modified
             if self.start_from_avg:
                 styles = styles + self.mean_latent.repeat(cond_img.shape[0],1,1)
             input_is_latent = True
         elif styles == 'wo_condition':
-            styles = self.encoder(cond_img[:,:3,:,:],return_feat=False, return_full=True) ##### modified
+            styles, feats = self.encoder(cond_img) ##### modified
             if self.start_from_avg:
                 styles = styles + self.mean_latent.repeat(cond_img.shape[0],1,1)
             input_is_latent = True           
-        feats = self.encoder(cond_img[:,:4,:,:], return_feat=True, return_full=True) ##### modified
         first_layer_feats, skip_layer_feats = None, None ##### modified            
 
         first_layer_feats = feats[0:2] # use f

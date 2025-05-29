@@ -10,13 +10,16 @@ import torch.nn.functional as F
 from scripts.utils import *
 from tqdm import tqdm
 import natsort
+import cv2
+
 
 data_path = '/data/shenfeihong/smile/out/'
 decoder_checkpoint_path = "/data/shenfeihong/smile/ori_style/checkpoint/ori_style_150000.pt"
+decoder_checkpoint_path = None
 # decoder_checkpoint_path = "/mnt/e/share/weight/smile/ori_style_150000.pt"
 save_path = './local_data' # '/data/shenfeihong/smile/weight/'
 learning_rate= 1e-5
-start_from_avg = True
+start_from_avg = False
 max_step = 800000
 d_reg_every = 16
 plot_every = 100
@@ -29,24 +32,36 @@ def get_network(checkpoint_path):
     net.eval()
     return net
 
-def test_single(path, case, checkpoint_path, save_img_path=None):
-    input = get_input(os.path.join(path, case), False)
+def test_yang(path, net, checkpoint_path=None, save_img_path=None):
+    input = get_input(path, False)
     cond_img = input['cond']
     real_img = input['images']
-    net = get_network(checkpoint_path)
+    if checkpoint_path is not None:
+        net.load_state_dict(torch.load(checkpoint_path))
     with torch.no_grad():
         fake_img,_ = net.forward(cond_img, return_latents=False, concat_img=False)
+
+    img_dict = {}
+    sum_img = torch.zeros_like(cond_img[0][:3,:,:])
+    sum_img[0] = 1-cond_img[0][2,:,:]
+    sum_img[1] = cond_img[0][5,:,:]
+    sum_img[2] = cond_img[0][8,:,:]
     if not save_img_path is None:
         save_img = tensor2im(fake_img[0])
         save_img.save(save_img_path)
-    img_dict = {}
-    img_dict['cond'] = cond_img[0][:3,:,:]
-    img_dict['input'] = cond_img[0][-3:,:,:]
-    img_dict['target'] = real_img[0]
-    img_dict['output'] = fake_img[0]
-    fig = plotting_fig(img_dict)
-    fig.savefig(f'/mnt/e/paper/smile/iortho_res/{case}.png')
-    plt.close(fig)
+        im = cv2.imread(save_path)
+        cv2.imshow('sim', im)
+        cv2.waitKey(0)
+    else:
+        img_dict['cond'] = sum_img
+        img_dict['input'] = cond_img[0][6:9,:,:]
+        img_dict['depth'] = cond_img[0][3:6,:,:]
+        img_dict['target'] = real_img[0]
+        img_dict['output'] = fake_img[0]
+        
+        fig = plotting_fig(img_dict)
+        fig.savefig(f'/mnt/gregory/smile/smile-face-simulation/visualize/{case}.png')
+        plt.close(fig)
 
 def test_multi_img(path, checkpoint_path):
     net = get_network(checkpoint_path)
@@ -93,13 +108,25 @@ def test_pt():
         fig.savefig(os.path.join(save_path, file.replace('.pt','.png')))
         plt.close(fig)
         
+def vis():
+    for case_path in glob.glob('/mnt/gregory/smile/data/Teeth/C01*'):
+        save_path = case_path+'/align/sim.png'
+        if not os.path.exists(save_path):
+            continue
+        im = cv2.imread(save_path)
+        cv2.imshow('sim', im)
+        cv2.waitKey(0)
+        
+
 if __name__=='__main__':
+    import glob
     path = '/mnt/e/data/smile/YangNew'
     path = '/mnt/hdd/data/smile/out1'
-    # get_input(os.path.join(path, 'C01003278134'), True)
-    # get_input(os.path.join(path, 'C01002721192'), True)
-    # test_multi_img(path, '/mnt/e/share/weight/smile/200000.pt')
-    test_pt()
-    # for case in tqdm(natsort.natsorted(os.listdir(path))[:15]):
-    #     test_single(path,case)  
-    # test_single(path, 'C01002721350', '/mnt/e/share/weight/smile/200000.pt', '/mnt/e/paper/smile/figure/mouth_out_2.png')  
+    # vis()
+    net = get_network('/mnt/gregory/smile/weight/cond/5.28/checkpoint/30000.pt')
+    for case_path in glob.glob('/mnt/gregory/smile/data/Teeth/C01*'):
+        save_path = case_path+'/align/sim.png'
+        if not os.path.exists(save_path.replace('sim.png', 'depth.png')):
+            continue
+        test_yang(case_path, net, save_img_path=save_path)
+        # break

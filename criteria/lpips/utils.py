@@ -1,7 +1,7 @@
 from collections import OrderedDict
 
 import torch
-
+import socket
 
 def normalize_activation(x, eps=1e-10):
     norm_factor = torch.sqrt(torch.sum(x ** 2, dim=1, keepdim=True))
@@ -10,8 +10,11 @@ def normalize_activation(x, eps=1e-10):
 
 def get_state_dict(net_type: str = 'alex', version: str = '0.1'):
     # build url
-    url = '/mnt/share/shenfeihong/working/pixel2style2pixel/pretrained_models/alex.pth'
-
+    if socket.gethostname() == 'vsfh-System-Product-Name':
+        url = '/mnt/gregory/smile/smile-face-simulation/criteria/lpips/alex.pth'
+    else:
+        url = '/nas/gregory/smile/smile-face-simulation/criteria/lpips/alex.pth'
+        
     # download
     old_state_dict = torch.load(
         url

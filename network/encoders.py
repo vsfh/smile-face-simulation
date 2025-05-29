@@ -184,10 +184,9 @@ class GradualStyleEncoder(Module):
             unit_module = bottleneck_IR_SE
         
         # for sketch/mask-to-face translation, add a new network T
-        if input_nc != 3:
-            self.input_label_layer = ResnetGenerator(input_nc, res_num)
+        self.input_label_layer = ResnetGenerator(input_nc, res_num)
 
-        self.input_layer = Sequential(Conv2d(3, 64, (3, 3), 1, 1, bias=False),
+        self.input_layer = Sequential(Conv2d(input_nc, 64, (3, 3), 1, 1, bias=False),
                                       InstanceNorm2d(64),
                                       PReLU(64))
         modules = []
@@ -251,11 +250,8 @@ class GradualStyleEncoder(Module):
     # out is the style latent code w+
     # feats[0] is f for the 1st conv layer, feats[1] is f for the 1st torgb layer
     # feats[2-8] is the skipped encoder features 
-    def forward(self, x, return_feat=False, return_full=False): ##### modified      
-        if return_feat:
-            x = self.input_label_layer(x)
-        else:
-            x = self.input_layer(x)
+    def forward(self, x, style=False): ##### modified      
+        x = self.input_layer(x)
         c256 = x ##### modified
         
         latents = []
@@ -288,15 +284,10 @@ class GradualStyleEncoder(Module):
 
         out = torch.stack(latents, dim=1)
         
-        if not return_feat:
-            return out
-        
         feats = [self.featlayer(torch.cat((c21, c22, c2), dim=1)), self.skiplayer(torch.cat((c21, c22, c2), dim=1))]
-        
-        if return_full: ##### modified
-            feats += [c2, c2, c22, c21, c1, c128, c256]
+        feats += [c2, c2, c22, c21, c1, c128, c256]
             
-        return feats
+        return out, feats
 
     
     # only compute the first-layer feature f

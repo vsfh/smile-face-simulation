@@ -5,7 +5,7 @@ from scipy.spatial.transform import Rotation as R
 from glob import glob
 import smile_utils
 from pytorch3d.renderer import (
-	RasterizationSettings, MeshRenderer, MeshRasterizer, BlendParams,
+	RasterizationSettings, MeshRenderer, MeshRasterizer, BlendParams, FoVPerspectiveCameras,
 	PerspectiveCameras, SoftPhongShader,HardPhongShader, TexturesVertex, PointLights,SoftSilhouetteShader
 )
 from pytorch3d.structures import Meshes, join_meshes_as_scene, join_meshes_as_batch
@@ -78,6 +78,113 @@ class EdgeShader(nn.Module):
         teeth = torch.argmin(zbuf_with_bg, dim=0)
 
         return teeth, new_depth.cpu().numpy()
+    
+class EdgeDepthShader(nn.Module):
+    def __init__(self, device="cpu", blend_params=None, zfar=200, znear=1):
+        super().__init__()
+        self.blend_params = blend_params if blend_params is not None else BlendParams()
+        self.zfar = zfar
+        self.znear = znear
+        self.edge_filter = torch.tensor(
+            [[[[-1. / 8, -1. / 8, -1. / 8],
+               [-1. / 8, 1., -1. / 8],
+               [-1. / 8, -1. / 8, -1. / 8]]]]
+        )
+    def forward(self, fragments, meshes, **kwargs):
+        f_labels = kwargs['f_labels']
+        
+        extra_mask = kwargs.get("extra_mask", None)
+        zbuf = fragments.zbuf
+        zbuf[zbuf==-1] = 1e6
+        min_zbuf_idx = zbuf.argmin(dim=0)
+        edge_map_res = np.zeros((256,256))
+        temp_mask = np.zeros((256,256))
+        masked_pix_to_face = self.get_masked_pix_to_face(fragments, f_labels)
+        for i in range(zbuf.shape[0]):
+            masked_pix_to_face[i][min_zbuf_idx!=i] = -1
+            if extra_mask is not None:
+                masked_pix_to_face[i][extra_mask==0] = -1
+            mask_arr = (masked_pix_to_face[i,...,0]>=0).cpu().numpy().astype(np.uint8)
+            if mask_arr.sum()>10:
+                mask_arr_dia = cv2.erode(mask_arr,np.ones((3,3)))
+                _, binary = cv2.threshold(mask_arr*255, 127, 255, cv2.THRESH_BINARY)
+                contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                contour = max(contours, key=cv2.contourArea)  # 选择最大的轮廓
+                contour = contour.squeeze()  # 获取 (x, y) 坐标
+                x, y = contour[:, 0], contour[:, 1]
+                x = np.hstack((x, x[0]))
+                y = np.hstack((y, y[0]))
+                if x.shape[0] <=6:
+                    continue
+
+                # 3. 平滑轮廓
+                # 使用样条插值，s=500 控制平滑度，per=True 表示闭合曲线
+                tck, u = splprep([x, y], s=5, per=True)
+                u_smooth = np.linspace(0, 1, 1000)  # 生成1000个平滑点
+                x_smooth, y_smooth = splev(u_smooth, tck)
+
+                # 4. 绘制平滑轮廓
+                smoothed_image = np.zeros_like(temp_mask)
+                points = np.array([x_smooth, y_smooth]).T.astype(np.int32)
+                cv2.polylines(smoothed_image, [points], isClosed=True, color=255, thickness=1)
+                smoothed_image[temp_mask==1]=0
+                temp_mask[mask_arr_dia>0] = 1
+                    # edge_map_res += edge_map
+                cv2.imwrite(f'visualize/{i}.png', temp_mask*255)
+                edge_map_res[smoothed_image>0] = 1
+                    
+            
+        edge_map_res = edge_map_res.astype(np.uint8)
+        
+        blend_params = kwargs.get("blend_params", self.blend_params)
+        mask = (masked_pix_to_face>0).type_as(fragments.dists)
+        prob_map = torch.sigmoid(-fragments.dists / blend_params.sigma) * mask
+        prob_map = torch.sum(prob_map, -1) 
+                
+        zbuf = fragments.zbuf[...,0] * mask[...,0]
+        zbuf_ = zbuf.clone()
+        zbuf_[zbuf_== 0] = 1e10
+        zbuf_ = torch.cat((torch.ones_like(zbuf_[0][None])*1e10,zbuf_),0)
+        zbuf_mask = torch.argmin(zbuf_, 0, keepdim=True)
+        
+        start = 100
+        for i in range(len(prob_map)):
+            temp = zbuf[i]*(zbuf_mask[0]==i+1)
+            prob_map[i] = 0
+            if i < len(prob_map)//2:
+                temp[temp>0] -= 5
+            if temp.sum()>1000:
+                prob_map[i][temp>0] = temp[temp>0]
+        prob_map = torch.sum(prob_map, 0)
+        prob_map[prob_map>0] = start+40*(1-(prob_map[prob_map>0]-prob_map[prob_map>0].min())/(prob_map[prob_map>0].max()-prob_map[prob_map>0].min()))
+        out_im = prob_map
+        out_im[prob_map==0] = 0
+        depth_map_res = out_im.detach().cpu().numpy().astype(np.uint8)
+        if extra_mask is not None:
+            depth_map_res[extra_mask==0] = 0
+        blur = cv2.GaussianBlur(edge_map_res*255, (11, 11), 0)
+        blur = blur/blur.max()*10
+        blur[depth_map_res==0] = 0
+        depth_map_res = (depth_map_res - blur).astype(np.uint8)
+        return edge_map_res, depth_map_res
+    
+    def get_edge_map(self, pix_to_face):
+        mask = (pix_to_face >= 0).type_as(self.edge_filter) # (batch, h, w, 1)
+        mask = mask.permute(0, 3, 1, 2)  # (batch, 1, h, w)
+        # mask = F.max_pool2d(mask[0], kernel_size=3, stride=1, padding=1)
+        edge_map = torch.conv2d(mask, self.edge_filter, padding=1).squeeze(1)  # (batch, h, w)
+        edge_map = edge_map > 1e-4  # (batch, h, w)
+        return edge_map
+    
+    @staticmethod
+    def get_masked_pix_to_face(fragments, f_labels):
+        shape = fragments.pix_to_face.shape
+        pix_to_face = fragments.pix_to_face.clone().reshape(-1)  # (h*w, )
+        f_idx_map = torch.arange(f_labels.shape[0]).type_as(f_labels)  # (n_f, )
+        f_idx_map[f_labels == 0] = -1  # mask gum faces
+        pix_to_face[pix_to_face >= 0] = f_idx_map[pix_to_face[pix_to_face >= 0]]
+        pix_to_face = pix_to_face.reshape(shape)  # (1, h, w, 1)
+        return pix_to_face
   
 def deepmap_to_edgemap(teeth_gray, mid):
     teeth_gray = teeth_gray.astype(np.uint8)
@@ -128,8 +235,15 @@ def show_target_teeth(img_folder, tid_list, target_step, type='batch', half=True
     scene.show()
     return
 
-def get_target_teeth(img_folder, tid_list, target_step, type='batch', half=False):
-    tooth_dict = smile_utils.load_teeth({int(os.path.basename(p).split('/')[-1][:2]): trimesh.load(p) for p in glob(os.path.join(img_folder, 'models', '*._Crown.stl'))},tid_list,half=half)
+def get_target_teeth(img_folder, tid_list, target_step, type='batch', half=False, ratio=1):
+    loaded = {int(os.path.basename(p).split('/')[-1][:2]): trimesh.load(p) for p in glob(os.path.join(img_folder, 'models', '*._Crown.stl'))}
+    # sum([v for v in loaded.values()]).show()
+    
+    for key, value in loaded.items():
+        value.vertices[...,2]*=ratio
+        loaded[key] = value
+    # sum([v for v in loaded.values()]).show()
+    tooth_dict = smile_utils.load_teeth(loaded,tid_list,half=half)
     step_one_dict = {}
     up_gum, down_gum = smile_utils.load_gum({'Upper':trimesh.load(f'{img_folder}/models/final/up.stl'),\
                                                 'Lower':trimesh.load(f'{img_folder}/models/final/down.stl')})    
@@ -142,16 +256,24 @@ def get_target_teeth(img_folder, tid_list, target_step, type='batch', half=False
         trans[:3,:3] = R.from_quat(arr[-4:]).as_matrix()
         step_one_dict[str(int(arr[0]))] = trans
         
+    f_label = []
     up_mesh = smile_utils.apply_step(tooth_dict, step_one_dict, mode='up', add=False, num_teeth=7)
+    for i in range(len(up_mesh)):
+        f_label.append(np.ones(np.array(up_mesh[i].triangles).shape[0], dtype=np.uint8))
+    up_mesh.append(up_gum)
+    f_label.append(np.zeros(np.array(up_gum.triangles).shape[0], dtype=np.uint8))
     up_tensor = smile_utils.meshes_to_tensor(up_mesh,type, device='cuda')
     down_mesh = smile_utils.apply_step(tooth_dict, step_one_dict, mode='down', add=False, num_teeth=7)
-    # down_mesh.append(down_gum)
-    # down_mesh.append(up_gum)
+    for i in range(len(down_mesh)):
+        f_label.append(np.ones(np.array(down_mesh[i].triangles).shape[0], dtype=np.uint8))
+    down_mesh.append(down_gum)
+    f_label.append(np.zeros(np.array(down_gum.triangles).shape[0], dtype=np.uint8))
     down_tensor = smile_utils.meshes_to_tensor(down_mesh,type, device='cuda')
-    return up_tensor, down_tensor
+    f_label = torch.tensor(np.hstack(f_label), device='cuda', dtype=torch.long)
+    return up_tensor, down_tensor, f_label
 
-def get_renderer(output_type='EdgeAndDepth', device='cuda', focal_length=12, light=[16.0, -101.0, -33.0], color = 0.26):
-    opt_cameras = PerspectiveCameras(device=device, focal_length=focal_length)
+def get_renderer(output_type='EdgeAndDepth', device='cuda', fov=12, light=[16.0, -101.0, -33.0], color = 0.26):
+    opt_cameras = FoVPerspectiveCameras(device=device, fov=fov, zfar=200)
     if 'Depth' == output_type:
         raster_settings = RasterizationSettings(
             image_size=256,
@@ -183,6 +305,16 @@ def get_renderer(output_type='EdgeAndDepth', device='cuda', focal_length=12, lig
         lights = PointLights(device=device, ambient_color=((color, color, color),), location=[light])
         blend_params=BlendParams(sigma=1e-4, gamma=1e-4, background_color=(0., 0., 0.))
         shader = HardPhongShader(device=device, lights=lights,blend_params=blend_params)
+    if 'EdgeAndDepth' == output_type:
+        raster_settings = RasterizationSettings(
+            image_size=256,
+            blur_radius=0,
+            faces_per_pixel=1,
+            perspective_correct=True,
+            cull_backfaces=True
+        )
+        blend_params=BlendParams(sigma=1e-6, gamma=1e-2, background_color=(0., 0., 0.))
+        shader = EdgeDepthShader(blend_params=blend_params)
     renderer = MeshRenderer(
         rasterizer=MeshRasterizer(
             cameras=opt_cameras,
@@ -193,6 +325,7 @@ def get_renderer(output_type='EdgeAndDepth', device='cuda', focal_length=12, lig
     return renderer
    
 def interface(case):
+    case = 'C01002721204'
     img = cv2.imread(f'/window/data/smile/out1/{case}/smile.png')
     mk = cv2.imread(f'/window/data/smile/out1/{case}/mouth_mask.png')
     with open(f'/window/data/smile/TeethSimulation/{case}/models/tid_list.json', 'r')as f:
@@ -200,10 +333,10 @@ def interface(case):
     mk_dia = cv2.dilate(mk, np.ones((7,7)))
     best_params = torch.load(f'/window/data/smile/out1/{case}/para.pt')
     step = [file for file in natsort.natsorted(os.listdir(f'/window/data/smile/TeethSimulation/{case}')) if file.endswith('txt')][-1]
-    up_tensor, down_tensor = get_target_teeth(f'/window/data/smile/TeethSimulation/{case}', tid_list, step, half=False)
+    up_tensor, down_tensor, f_label = get_target_teeth(f'/window/data/smile/TeethSimulation/{case}', tid_list, step, half=False)
     T = best_params['T']
-    dist = best_params['dist']
-    focal_length=best_params['focal_length']
+    dist = torch.tensor([0.,0.,0.]).cuda()
+    fov=15
     lighta, lightb, lightc = 2.0, -60.0, -12.0
     color = 0.9
     d = 100
@@ -216,6 +349,9 @@ def interface(case):
     m = 109
     u=117
     i=105
+    z = 122
+    x = 120
+    c = 99
     enter = 13
     angle = 0
     while True:
@@ -226,18 +362,19 @@ def interface(case):
             
             teeth_mesh = join_meshes_as_batch([up_tensor, down_tensor.offset_verts(dist)],
                                                 include_textures=True)
-            renderer = get_renderer('Edge', focal_length=focal_length, light=[lighta, lightb, lightc], color=color)
+            renderer = get_renderer('Edge', fov=fov, light=[lighta, lightb, lightc], color=color)
 
             out_im, _ = renderer(meshes_world=teeth_mesh, R=R, T=T, extra_mask=None)
             # out_im = (255*out_im[0,:,:,:3]/out_im[0,:,:,:3].max()).detach().cpu().numpy().astype(np.uint8)
 
-            out_im[mk[...,0]==0]=0  
+            # out_im[mk[...,0]==0]=0  
             eu, ed = deepmap_to_edgemap(out_im.detach().cpu().numpy(), up_tensor._N)
             cond_im = img.copy()
-            cond_im[...,0][mk_dia[...,0]!=0] = ed[mk_dia[...,0]!=0]
-            cond_im[...,1][mk_dia[...,0]!=0] = eu[mk_dia[...,0]!=0]  
+            cond_im[...,0][ed>0] = ed[ed>0]
+            cond_im[...,1][eu>0] = eu[eu>0]  
             cv2.imshow('img', cond_im)
             key = cv2.waitKey()
+            print(key)
             if key==a:
                 T[0,0] += 1
                 # lighta += 1
@@ -257,20 +394,28 @@ def interface(case):
                 T[0,2] -= 5
                 # lightc -= 1
             if key==n:
-                focal_length += 10
+                fov += 1
+                T[0,2] -= 8
                 # color += 0.02
             if key==m:
-                focal_length -= 10
+                fov -= 1
+                T[0,2] += 8
                 # color -= 0.02
             if key==u:
                 angle += 2/180
             if key==i:
                 angle -= 2/180
+            if key==c:
+                print('dist', dist, 'T', T, 'R', R, 'fov', fov)
+            if key==z:
+                dist[2] += 1
+            if key==x:
+                dist[2] -= 1
             if key==enter:
                 best_params['T'] = T
                 best_params['R'] = R
                 best_params['dist'] = dist
-                best_params['focal_length'] = focal_length
+                best_params['fov'] = fov
                 print(lighta, lightb, lightc, color)
                 break
     torch.save(best_params, f'/window/data/smile/out1/{case}/para.pt')
